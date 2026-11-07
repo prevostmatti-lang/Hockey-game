@@ -319,7 +319,10 @@ function arretSurImage(ctx) {
           pause = 1.4;
         }
       }
-      if (trial) world.setView(trial.me.x, trial.me.z, trial.yaw + st.look, EYE);
+      if (trial) {
+        world.setBody(trial.me.x, trial.me.z, trial.yaw);
+        world.setView(trial.me.x, trial.me.z, trial.yaw + st.look, EYE);
+      }
       return t >= seg.seconds && pause <= 0;
     },
     destroy() {

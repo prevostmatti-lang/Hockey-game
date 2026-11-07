@@ -95,7 +95,7 @@ function renderMenu() {
     list.appendChild(row);
   }
   $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
-  $('#portrait-tip').hidden = window.innerWidth > window.innerHeight;
+  $('#portrait-tip').hidden = window.innerWidth < window.innerHeight;
 }
 
 function goMenu() {
@@ -659,6 +659,7 @@ function syncRender() {
   const mine = p.owner === st.me;
   world.setHolding(mine);
   if (!mine) world.puck.position.set(p.x, p.y, p.z);
+  world.setBody(st.me.x, st.me.z, st.me.yaw);
   world.setView(st.me.x, st.me.z, st.me.yaw + st.me.head);
 }
 

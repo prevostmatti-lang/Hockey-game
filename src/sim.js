@@ -159,7 +159,8 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     const f = fwd(yaw);
     const side = p.isMe ? (hand === 'R' ? 1 : -1) : p.hand === 'L' ? -1 : 1;
     const r = rightOf(yaw);
-    return { x: p.x + f.x * 0.85 + r.x * 0.32 * side, z: p.z + f.z * 0.85 + r.z * 0.32 * side };
+    // Même position que le palet porté sur la crosse dessinée (world.js : STICK_PUCK).
+    return { x: p.x + f.x * 0.94 + r.x * 0.33 * side, z: p.z + f.z * 0.94 + r.z * 0.33 * side };
   }
 
   function emit(type, data = {}) {
