@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0b2545" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Tête haute !" />
+    <meta name="description" content="Jeu de hockey en vue première personne pour apprendre à lever la tête et prendre les bonnes décisions." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="stylesheet" href="css/style.css" />
+    <title>Tête haute !</title>
+  </head>
+  <body>
+    <canvas id="scene" aria-label="Vue du joueur sur la patinoire"></canvas>
+
+    <!-- Menu -->
+    <section id="menu" class="screen">
+      <div class="card menu-card">
+        <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
+        <p class="tagline">Regarde. Décide. Joue.</p>
+        <ol class="howto">
+          <li><b>👀 Regarde partout</b> en glissant ton doigt, avant de recevoir le palet.</li>
+          <li><b>👉 Décide vite</b> : touche un coéquipier pour passer, le but pour tirer, ou <i>Patine</i>.</li>
+          <li><b>💡 Comprends</b> pourquoi c’était le bon choix.</li>
+        </ol>
+        <h2>Choisis ta catégorie</h2>
+        <div id="levels" class="levels"></div>
+        <p id="portrait-tip" class="tip">📱 Astuce : tourne ton appareil à l’horizontale pour mieux voir.</p>
+      </div>
+    </section>
+
+    <!-- Avant chaque situation -->
+    <section id="intro" class="screen" hidden>
+      <div class="card">
+        <p id="intro-step" class="step"></p>
+        <h2 id="intro-title"></h2>
+        <p>Tu vas recevoir le palet de ton coéquipier.<br /><b>Regarde partout avant qu’il arrive !</b></p>
+        <div class="row">
+          <button id="intro-back" class="btn ghost">Menu</button>
+          <button id="btn-go" class="btn big">C’est parti !</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interface de jeu -->
+    <div id="hud" hidden>
+      <div class="hud-top">
+        <span id="hud-level" class="pill"></span>
+        <span id="hud-step" class="pill"></span>
+        <span class="spacer"></span>
+        <button id="btn-sound" class="icon-btn" aria-label="Son"></button>
+        <button id="btn-quit" class="icon-btn" aria-label="Quitter">✕</button>
+      </div>
+      <div id="timer"><div id="timer-fill"></div></div>
+      <div id="banner" hidden></div>
+      <div id="look-hint">◀ glisse ton doigt pour tourner la tête ▶</div>
+      <button id="btn-skate" class="btn big skate" hidden>⛸️ Patiner</button>
+    </div>
+
+    <div id="flash" aria-live="polite"></div>
+
+    <!-- Résultat d'une situation -->
+    <section id="result" class="screen" hidden>
+      <div class="card result-card">
+        <div class="result-text">
+          <div id="res-stars" class="stars"></div>
+          <h2 id="res-title"></h2>
+          <p id="res-choice" class="choice"></p>
+          <p id="res-why"></p>
+          <p id="res-best" class="best"></p>
+          <p id="res-scan"></p>
+          <p class="lesson">🎓 <span id="res-lesson"></span></p>
+        </div>
+        <div class="result-diagram">
+          <canvas id="res-diagram"></canvas>
+          <p class="legend"><span class="g">━ meilleure option</span> <span class="o">┅ ton choix</span></p>
+        </div>
+        <div class="row actions">
+          <button id="btn-retry" class="btn ghost">↺ Rejouer</button>
+          <button id="btn-next" class="btn big">Suivant ▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Fin de la série -->
+    <section id="summary" class="screen" hidden>
+      <div class="card">
+        <h2 id="sum-title"></h2>
+        <p id="sum-stars" class="stars big"></p>
+        <p id="sum-text"></p>
+        <div class="row">
+          <button id="btn-menu" class="btn ghost">Menu</button>
+          <button id="btn-again" class="btn big">Rejouer</button>
+        </div>
+      </div>
+    </section>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
