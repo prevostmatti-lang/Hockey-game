@@ -230,13 +230,19 @@ function makePlayer({ team, num, goalie }) {
   helmet.position.y = 1.62;
   g.add(helmet);
   // Crosse
-  // Le joueur tient sa crosse à droite (côté -x de son repère) ; la palette part vers l'intérieur.
+  // Le joueur tient sa crosse à droite (côté -x de son repère). Comme sur une vraie crosse,
+  // la palette prolonge le manche vers l'avant : la pointe est la partie la plus éloignée du joueur.
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
-  const heel = new THREE.Vector3(-0.34, 0.05, 0.74);
-  g.add(shaftBetween(heel, new THREE.Vector3(-0.3, 1.0, 0.25), stickMat));
+  const hands = new THREE.Vector3(-0.28, 1.0, 0.22);
+  const heel = new THREE.Vector3(-0.42, 0.0, 0.8);
+  g.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), hands, stickMat));
   const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
-  blade.position.set(heel.x, 0, heel.z);
-  alongX(blade, 0.95, 0.3);
+  blade.position.copy(heel);
+  const ux = heel.x - hands.x;
+  const uz = heel.z - hands.z;
+  const ul = Math.hypot(ux, uz);
+  alongX(blade, ux / ul, uz / ul);
+  blade.scale.z = -1; // face coup droit tournée vers l'intérieur (côté du palet)
   g.add(blade);
 
   if (goalie) {
@@ -278,8 +284,13 @@ function layoutMyStick(stick, vfov, aspect, side = 1) {
   // L'ensemble palette + palet est un peu basculé vers la caméra : on les voit « de dessus »,
   // comme quand on baisse les yeux sur son palet (sinon la lame cache le palet).
   const heel = new THREE.Vector3(side * 0.2, yb, -d);
-  const ux = -side * 0.97;
-  const uz = -0.24;
+  const hands = new THREE.Vector3(side * Math.min(halfW * 0.95, 1.0), yb + 0.75, -0.35);
+  // La palette prolonge le manche (vue de dessus) : même direction que du manche vers le talon.
+  const hx = heel.x - hands.x;
+  const hz = heel.z - hands.z;
+  const hl = Math.hypot(hx, hz);
+  const ux = hx / hl;
+  const uz = hz / hl;
   blade.clear();
   blade.position.copy(heel);
   blade.rotation.set(0.5, 0, 0);
@@ -289,12 +300,11 @@ function layoutMyStick(stick, vfov, aspect, side = 1) {
   blade.add(b);
   // Palet collé à la face coup droit, au milieu de la palette.
   blade.add(puck);
-  puck.position.set(ux * 0.17, 0.018, uz * 0.17 - 0.1);
+  puck.position.set(ux * 0.17 + 0.03 * side, 0.018, uz * 0.17 - 0.1);
 
   // Manche : du talon jusqu'aux mains, hors de l'écran sur le côté.
   shaft.clear();
   const mat = std(0x1f2430, { roughness: 0.5 });
-  const hands = new THREE.Vector3(side * Math.min(halfW * 0.95, 1.0), yb + 0.75, -0.35);
   shaft.add(shaftBetween(new THREE.Vector3(heel.x, yb + 0.05, heel.z), hands, mat, 0.032, 0.024));
 
 }
