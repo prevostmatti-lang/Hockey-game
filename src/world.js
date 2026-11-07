@@ -251,21 +251,20 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   back.position.set(0, 1.3, -0.29);
   g.add(back);
   // Crosse
-  // Crosse d'un droitier (palette à droite, côté -x du repère du joueur) : la main du haut est la main
-  // GAUCHE, le manche traverse devant le corps jusqu'à la palette à droite, et le creux de la palette
-  // (coup droit) regarde vers la gauche. La palette prolonge le manche, pointe vers l'avant.
-  // Un gaucher est le miroir exact : main du haut droite, palette à gauche, courbée vers la droite.
+  // Crosse d'un droitier (dessin de référence du club) : la main du haut est la main GAUCHE,
+  // le manche descend en travers du corps jusqu'à la palette, posée À PLAT EN TRAVERS devant les patins,
+  // côté droit, pointe vers l'EXTÉRIEUR (vers la droite du joueur). Le coup droit regarde vers l'avant.
+  // Un gaucher est le miroir exact (main droite en haut, palette à gauche, pointe vers la gauche).
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
   const topHand = new THREE.Vector3(0.3, 1.0, 0.25); // bout du bras gauche
-  const heel = new THREE.Vector3(-0.28, 0.0, 0.82);
+  const heel = new THREE.Vector3(-0.12, 0.0, 0.8);
   const stick = new THREE.Group();
   stick.name = 'stick';
   stick.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), topHand, stickMat));
   const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
   blade.position.copy(heel);
-  // Palette posée devant le patin, pointe vers l'avant et légèrement vers l'intérieur.
-  alongX(blade, 0.1, 0.995);
-  blade.scale.z = -1; // creux de la palette tourné vers la gauche du joueur
+  alongX(blade, -1, 0.08); // en travers, pointe vers la droite du joueur (-x), un peu vers l'avant
+  blade.scale.z = -1; // creux (coup droit) tourné vers l'avant
   stick.add(blade);
   if (hand === 'L') stick.scale.x = -1;
   g.add(stick);
@@ -307,13 +306,12 @@ function layoutMyStick(stick, vfov, aspect, side = 1) {
   // Même règle qu'une vraie crosse : la main du haut (gauche pour un droitier) est devant le ventre,
   // le manche descend en diagonale jusqu'à la palette, du côté de la palette (droite pour un droitier).
   // L'ensemble palette + palet est un peu basculé vers la caméra pour qu'on voie le palet « de dessus ».
-  const heel = new THREE.Vector3(side * 0.28, yb, -1.05);
+  const heel = new THREE.Vector3(side * 0.1, yb, -1.05);
   const hands = new THREE.Vector3(-side * 0.42, -0.55, -0.3);
-  const hx = heel.x - hands.x;
-  const hz = heel.z - hands.z;
-  const hl = Math.hypot(hx, hz);
-  const ux = hx / hl;
-  const uz = hz / hl;
+  // Palette posée en travers devant soi, pointe vers l'extérieur (droite pour un droitier).
+  const ul = Math.hypot(1, 0.12);
+  const ux = side / ul;
+  const uz = -0.12 / ul;
   blade.clear();
   blade.position.copy(heel);
   blade.rotation.set(0.65, 0, 0);
