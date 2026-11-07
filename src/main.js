@@ -9,6 +9,9 @@ import { createSim, angleTo, wrap } from './sim.js';
 import { createWorld } from './world.js';
 import { drawReplay } from './diagram.js';
 import { sfx, speak, unlockAudio, toggleMute, isMuted } from './audio.js';
+import { BLOCKS, calendar, weekOf, blockOf, isHoliday, sessionPlan, scaledLevel, PROGRAM_WEEKS } from './program.js';
+import { createDrill, closeDrillUI } from './drills.js';
+import { makeVariant } from './generator.js';
 
 const $ = (s) => document.querySelector(s);
 const canvas = $('#scene');
@@ -34,6 +37,8 @@ const G = {
   results: [],
   menuYaw: 0,
   shown: false,
+  session: null, // séance du programme en cours
+  drill: null, // exercice court en cours
 };
 
 // ---------- sauvegarde locale ----------
@@ -54,7 +59,7 @@ function save(key, value) {
 }
 
 // ---------- écrans ----------
-const SCREENS = ['#hand', '#menu', '#intro', '#result', '#summary'];
+const SCREENS = ['#hand', '#menu', '#intro', '#result', '#summary', '#program', '#session-end'];
 function showScreen(id) {
   for (const s of SCREENS) $(s).hidden = s !== id;
   $('#hud').hidden = id !== null;
@@ -94,6 +99,8 @@ function renderMenu() {
 }
 
 function goMenu() {
+  stopDrill();
+  G.session = null;
   G.phase = 'menu';
   G.sim = null;
   world.clearActors();
@@ -137,9 +144,12 @@ function loadScenario(scn) {
 
 function showIntro() {
   const scn = G.queue[G.index];
+  if (G.session) G.mode = scn.mode === 'defense' ? 'defense' : 'attack';
   loadScenario(scn);
   G.phase = 'intro';
-  $('#intro-step').textContent = `${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · ${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
+  $('#intro-step').textContent = G.session
+    ? `${G.session.plan.title} · ${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · Situation ${G.index + 1}`
+    : `${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · ${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
   $('#intro-title').textContent = scn.title;
   if (scn.mode === 'defense') {
     $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">⬇ Tire ton pouce tout droit vers le bas pour patiner à reculons. Double tap pour freiner.</span>`;
@@ -156,7 +166,7 @@ function beginPlay() {
   G.phase = 'play';
   resetInput();
   $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
-  $('#hud-step').textContent = `${G.index + 1} / ${G.queue.length}`;
+  $('#hud-step').textContent = G.session ? '⏱️' : `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
   $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · pouce en arrière : regarder derrière · tout en bas : reculer' : '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner · pouce en arrière : regarder derrière';
   showScreen(null);
@@ -582,6 +592,18 @@ function showResult() {
 }
 
 function next() {
+  if (G.session && G.session.live) {
+    const L = G.session.live;
+    if (performance.now() >= L.endAt) {
+      G.session.stats.live = { situations: G.results.length, stars: G.results.reduce((a, b) => a + (b || 0), 0) };
+      nextSegment();
+      return;
+    }
+    G.index += 1;
+    if (G.index >= G.queue.length) G.queue.push(...liveQueue(L.mode, 6));
+    showIntro();
+    return;
+  }
   G.index += 1;
   if (G.index < G.queue.length) showIntro();
   else showSummary();
@@ -642,7 +664,15 @@ function syncRender() {
 
 // ---------- boucle ----------
 function update(dt) {
-  if (G.phase === 'menu' || G.phase === 'hand' || !G.sim) {
+  if (G.phase === 'drill' && G.drill) {
+    if (G.drill.update(dt)) finishDrill();
+    return;
+  }
+  if (G.session && G.session.live && G.phase === 'play') {
+    const left = Math.max(0, (G.session.live.endAt - performance.now()) / 1000);
+    $('#hud-step').textContent = `⏱️ ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+  }
+  if (G.phase === 'menu' || G.phase === 'hand' || G.phase === 'program' || !G.sim) {
     G.menuYaw += dt * 0.12;
     world.setView(0, -12, G.menuYaw, 3.5);
     return;
@@ -668,7 +698,218 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// ---------- programme : 3 séances de 15 min par semaine ----------
+const PROG_KEY = 'tetehaute.program';
+const loadProgram = () => load(PROG_KEY, { cat: 'U9', done: {}, history: [] });
+
+function currentWeek() {
+  return Math.min(PROGRAM_WEEKS, Math.max(1, weekOf(new Date())));
+}
+
+/** Semaine d'entraînement utilisée pour le contenu (pendant les vacances : le bloc précédent). */
+function contentWeek(week) {
+  let w = week;
+  while (w > 1 && !blockOf(w)) w -= 1;
+  return w;
+}
+
+function fmtDate(d) {
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+function renderProgram() {
+  const prog = loadProgram();
+  const week = currentWeek();
+  const cw = contentWeek(week);
+  const block = blockOf(cw);
+  const before = weekOf(new Date()) === 0;
+  $('#prog-week').textContent = isHoliday(week)
+    ? `Semaine ${week} / ${PROGRAM_WEEKS} · 🎄 Vacances : séances libres`
+    : `Semaine ${week} / ${PROGRAM_WEEKS}${before ? ' · le programme démarre le lundi 9 novembre' : ''}`;
+  $('#prog-block').textContent = `Bloc ${block.id} · ${block.name}`;
+  $('#prog-focus').textContent = `🎯 ${block.focus}`;
+  const done = prog.done[week] || [];
+  const box = $('#prog-sessions');
+  box.innerHTML = '';
+  for (const l of ['A', 'B', 'C']) {
+    const plan = sessionPlan(cw, l);
+    const b = document.createElement('button');
+    b.className = `session${done.includes(l) ? ' done' : ''}`;
+    b.innerHTML = `<span class="s-l">${done.includes(l) ? '✅' : l}</span><span class="s-t">${plan.title.split('· ')[1]}</span><span class="s-d">15 min</span>`;
+    b.addEventListener('click', () => startSession(l));
+    box.appendChild(b);
+  }
+  const cats = $('#prog-cats');
+  cats.innerHTML = '';
+  for (const lv of LEVELS) {
+    const b = document.createElement('button');
+    b.textContent = `${lv.name} (${lv.ages})`;
+    b.className = prog.cat === lv.id ? 'on' : '';
+    b.addEventListener('click', () => {
+      const p = loadProgram();
+      p.cat = lv.id;
+      save(PROG_KEY, p);
+      renderProgram();
+    });
+    cats.appendChild(b);
+  }
+  const ol = $('#prog-calendar');
+  ol.innerHTML = '';
+  for (const w of calendar()) {
+    const li = document.createElement('li');
+    const n = (prog.done[w.week] || []).length;
+    li.textContent = w.holiday
+      ? `Sem. ${w.week} (${fmtDate(w.start)}) : vacances`
+      : `Sem. ${w.week} (${fmtDate(w.start)}) : ${w.block.name} ${'●'.repeat(n)}${'○'.repeat(3 - n)}`;
+    if (w.holiday) li.className = 'holiday';
+    if (w.week === week) li.className = 'now';
+    ol.appendChild(li);
+  }
+}
+
+function showProgram() {
+  stopDrill();
+  G.session = null;
+  G.phase = 'program';
+  G.sim = null;
+  world.clearActors();
+  world.setStickVisible(false);
+  renderProgram();
+  showScreen('#program');
+}
+
+/** File de situations (variantes) pour la partie « jeu » d'une séance. */
+function liveQueue(mode, n) {
+  const cat = loadProgram().cat;
+  const att = SCENARIOS.filter((x) => x.level === cat);
+  const def = DEFENSE_SCENARIOS.filter((x) => x.level === cat);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const m = mode === 'mixed' ? (i % 2 ? 'defense' : 'attack') : mode;
+    const pool = m === 'defense' ? def : att;
+    out.push(makeVariant(pool[Math.floor(Math.random() * pool.length)]));
+  }
+  return out;
+}
+
+function startSession(letter) {
+  unlockAudio();
+  const week = currentWeek();
+  const plan = sessionPlan(contentWeek(week), letter);
+  // ?rapide dans l'adresse : séance accélérée (démonstration aux entraîneurs, tests).
+  if (new URLSearchParams(location.search).has('rapide')) {
+    plan.segments = plan.segments.map((x) => ({ ...x, seconds: Math.max(8, Math.round(x.seconds / 20)) }));
+  }
+  const cat = loadProgram().cat;
+  G.session = { week, letter, plan, seg: -1, stats: {}, base: LEVELS.find((l) => l.id === cat), live: null };
+  nextSegment();
+}
+
+function nextSegment() {
+  const S = G.session;
+  stopDrill();
+  S.live = null;
+  S.seg += 1;
+  const seg = S.plan.segments[S.seg];
+  if (!seg) return;
+  const label = `${S.seg + 1}/4 · ${seg.label}`;
+  if (seg.drill === 'live') {
+    G.level = scaledLevel(S.base, S.plan.block.diff);
+    G.queue = liveQueue(seg.mode, 6);
+    G.index = 0;
+    G.results = [];
+    S.live = { mode: seg.mode, endAt: performance.now() + seg.seconds * 1000 };
+    setBanner(label, 'info');
+    showIntro();
+    return;
+  }
+  if (seg.drill === 'bilan') {
+    showSessionEnd();
+    return;
+  }
+  // Exercice court
+  showScreen(null);
+  $('#hud').hidden = true;
+  G.phase = 'drill';
+  G.sim = null;
+  resetInput();
+  const pool = SCENARIOS.filter((x) => x.level === S.base.id);
+  G.drill = createDrill(seg.drill, { world, canvas, seg, rand: Math.random, sfx, speak, pool, hand: G.hand });
+  G.drill.kind = seg.drill;
+  $('#drill-seg').textContent = label;
+  sfx.whistle();
+}
+
+function stopDrill() {
+  if (G.drill) {
+    G.drill.destroy();
+    G.drill = null;
+  }
+  closeDrillUI();
+}
+
+function finishDrill() {
+  G.session.stats[G.drill.kind] = G.drill.stats;
+  nextSegment();
+}
+
+function pct(a, b) {
+  return b ? Math.round((100 * a) / b) : 0;
+}
+
+function showSessionEnd() {
+  const S = G.session;
+  G.phase = 'session-end';
+  const st = S.stats;
+  const lines = [];
+  const tips = [];
+  if (st.coupdoeil) {
+    const c = st.coupdoeil;
+    const avg = c.times.length ? c.times.reduce((a, b) => a + b, 0) / c.times.length : 0;
+    lines.push(`👀 Coup d’œil : ${c.hits} / ${c.reps} trouvés${avg ? `, en ${avg.toFixed(1).replace('.', ',')} s en moyenne` : ''}`);
+    if (pct(c.hits, c.reps) < 70) tips.push('Tourne la tête plus tôt et plus souvent : regarde derrière toi avant même que le palet arrive.');
+  }
+  if (st.live) {
+    const max = st.live.situations * 3;
+    lines.push(`🏒 Situations de jeu : ${st.live.situations} jouées, ⭐ ${st.live.stars} / ${max}`);
+    if (pct(st.live.stars, max) < 50) tips.push('En situation, prends l’information AVANT d’avoir le palet : tu décideras plus vite.');
+  }
+  if (st.arret) {
+    const a = st.arret;
+    lines.push(`⏸️ Arrêt sur image : ${a.hits} / ${a.reps} bonnes décisions`);
+    if (a.stopReps) lines.push(`🛑 Savoir garder le palet : ${a.stopHits} / ${a.stopReps}`);
+    if (a.stopReps && pct(a.stopHits, a.stopReps) < 60) tips.push('Avant de passer, vérifie la ligne de passe une dernière fois : si un adversaire la coupe, garde le palet.');
+  }
+  if (st.memoire) {
+    const m = st.memoire;
+    lines.push(`🧠 Mémoire de glace : ${m.hits} / ${m.reps}`);
+    if (pct(m.hits, m.reps) < 60) tips.push('Pour mémoriser, repère d’abord tes coéquipiers, puis les adversaires les plus proches.');
+  }
+  // Sauvegarde de la séance
+  const prog = loadProgram();
+  const done = new Set(prog.done[S.week] || []);
+  done.add(S.letter);
+  prog.done[S.week] = [...done];
+  prog.history.push({ date: new Date().toISOString(), week: S.week, letter: S.letter, stats: st });
+  prog.history = prog.history.slice(-200);
+  save(PROG_KEY, prog);
+
+  $('#se-step').textContent = `Semaine ${S.week} · ${S.plan.title}`;
+  $('#se-title').textContent = done.size >= 3 ? 'Semaine complète ! 🏆' : 'Séance terminée ! 💪';
+  $('#se-list').innerHTML = lines.map((l) => `<li>${l}</li>`).join('');
+  $('#se-tip').textContent = `🎓 ${tips[0] || S.plan.focus}`;
+  G.sim = null;
+  world.clearActors();
+  showScreen('#session-end');
+  sfx.good();
+  speak($('#se-title').textContent);
+}
+
 // ---------- boutons ----------
+$('#btn-program').addEventListener('click', showProgram);
+$('#prog-back').addEventListener('click', goMenu);
+$('#se-done').addEventListener('click', showProgram);
+$('#drill-quit').addEventListener('click', showProgram);
 for (const b of document.querySelectorAll('.hand-btn')) b.addEventListener('click', () => setHand(b.dataset.hand));
 $('#btn-hand').addEventListener('click', () => showScreen('#hand'));
 $('#btn-go').addEventListener('click', beginPlay);
@@ -676,8 +917,8 @@ $('#btn-next').addEventListener('click', next);
 $('#btn-retry').addEventListener('click', showIntro);
 $('#btn-again').addEventListener('click', () => startLevel(G.level.id, G.mode));
 $('#btn-menu').addEventListener('click', goMenu);
-$('#btn-quit').addEventListener('click', goMenu);
-$('#intro-back').addEventListener('click', goMenu);
+$('#btn-quit').addEventListener('click', () => (G.session ? showProgram() : goMenu()));
+$('#intro-back').addEventListener('click', () => (G.session ? showProgram() : goMenu()));
 const soundBtn = $('#btn-sound');
 const paintSound = () => (soundBtn.textContent = isMuted() ? '🔇' : '🔊');
 soundBtn.addEventListener('click', () => {
@@ -697,7 +938,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // Accès pour les tests automatisés
-window.__game = { G, input, world, startLevel, beginPlay, setHand };
+window.__game = { G, input, world, startLevel, beginPlay, setHand, startSession, showProgram, nextSegment };
 
 G.hand = load(HAND_KEY, null);
 if (G.hand) world.setHand(G.hand);

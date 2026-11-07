@@ -43,7 +43,8 @@
       <div class="card menu-card">
         <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
         <p class="tagline">Regarde. Décide. Marque.</p>
-        <h2>Choisis ta catégorie</h2>
+        <button id="btn-program" class="btn big program-btn">📅 Mon programme · 3 × 15 min par semaine</button>
+        <h2>Ou joue librement</h2>
         <div id="levels"></div>
         <h2>Comment jouer</h2>
         <ul class="controls">
@@ -55,6 +56,40 @@
         </ul>
         <p class="hand-line">Palette <b id="hand-label"></b> · <button id="btn-hand" class="link">changer</button></p>
         <p id="portrait-tip" class="tip">📱 Astuce : tourne ton appareil à l’horizontale pour mieux voir.</p>
+      </div>
+    </section>
+
+    <!-- Programme d'entraînement -->
+    <section id="program" class="screen" hidden>
+      <div class="card program-card">
+        <p id="prog-week" class="step"></p>
+        <h2 id="prog-block"></h2>
+        <p id="prog-focus" class="lesson"></p>
+        <div id="prog-sessions" class="sessions"></div>
+        <div class="prog-cat">
+          <span>Ma catégorie :</span>
+          <div id="prog-cats" class="seg"></div>
+        </div>
+        <details class="prog-cal">
+          <summary>📆 Tout le calendrier</summary>
+          <ol id="prog-calendar"></ol>
+        </details>
+        <div class="row">
+          <button id="prog-back" class="btn ghost">Menu</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Fin de séance -->
+    <section id="session-end" class="screen" hidden>
+      <div class="card">
+        <p id="se-step" class="step"></p>
+        <h2 id="se-title"></h2>
+        <ul id="se-list" class="se-list"></ul>
+        <p id="se-tip" class="lesson"></p>
+        <div class="row">
+          <button id="se-done" class="btn big">Terminer</button>
+        </div>
       </div>
     </section>
 
@@ -85,6 +120,23 @@
       <div id="banner" hidden></div>
       <div id="ctl-hint">☝️ Garde ton doigt appuyé pour patiner</div>
       <div id="stick" hidden><div id="stick-knob"></div></div>
+    </div>
+
+    <!-- Exercices courts du programme -->
+    <div id="drill" hidden>
+      <div class="hud-top">
+        <span id="drill-name" class="pill"></span>
+        <span id="drill-seg" class="pill"></span>
+        <span class="spacer"></span>
+        <span id="drill-score" class="pill"></span>
+        <button id="drill-quit" class="icon-btn" aria-label="Quitter">✕</button>
+      </div>
+      <div id="drill-timer" class="bar"><div id="drill-timer-fill"></div></div>
+      <div id="drill-rep" class="bar small"><div id="drill-rep-fill"></div></div>
+      <div id="drill-prompt"></div>
+      <div id="drill-cover" hidden></div>
+      <div id="drill-feedback"></div>
+      <div id="drill-buttons"></div>
     </div>
 
     <div id="flash" aria-live="polite"></div>

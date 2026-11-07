@@ -608,3 +608,190 @@ p {
 #hud:has(#ctl-hint:not([hidden])) #banner {
   margin-top: 58px;
 }
+
+/* ---------- programme ---------- */
+.program-btn {
+  width: 100%;
+  margin: 8px 0 4px;
+  background: var(--green);
+  box-shadow: 0 4px 0 #157a44;
+}
+.program-card {
+  width: min(640px, 100%);
+}
+.sessions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 10px 0;
+}
+.session {
+  border: 0;
+  border-radius: 18px;
+  padding: 12px 8px;
+  font: inherit;
+  color: #fff;
+  background: var(--blue);
+  box-shadow: 0 4px 0 #0d47b8;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.session.done {
+  background: var(--green);
+  box-shadow: 0 4px 0 #157a44;
+}
+.session .s-l {
+  font-size: 26px;
+  font-weight: 900;
+}
+.session .s-t {
+  font-size: 14px;
+  font-weight: 700;
+}
+.session .s-d {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.prog-cat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-weight: 700;
+}
+.seg {
+  display: inline-flex;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid var(--navy);
+}
+.seg button {
+  border: 0;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 800;
+  background: #fff;
+  color: var(--navy);
+  cursor: pointer;
+}
+.seg button.on {
+  background: var(--navy);
+  color: #fff;
+}
+.prog-cal {
+  text-align: left;
+  margin-top: 10px;
+  font-size: 14px;
+}
+.prog-cal summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.prog-cal li.now {
+  font-weight: 900;
+  color: var(--blue);
+}
+.prog-cal li.holiday {
+  color: var(--muted);
+}
+.se-list {
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: 20px;
+}
+
+/* ---------- exercices ---------- */
+#drill {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+#drill .icon-btn,
+#drill-buttons {
+  pointer-events: auto;
+}
+.bar {
+  margin: 8px auto 0;
+  width: min(420px, 70%);
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(11, 37, 69, 0.55);
+  overflow: hidden;
+}
+.bar.small {
+  height: 6px;
+  margin-top: 4px;
+}
+.bar > div {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--red), var(--yellow), var(--green));
+}
+#drill-rep-fill {
+  background: var(--yellow);
+}
+#drill-prompt {
+  margin: 10px auto 0;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(30, 102, 245, 0.92);
+  color: #fff;
+  font-weight: 900;
+  font-size: clamp(16px, 3.6vw, 22px);
+  text-align: center;
+}
+#drill-feedback {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100% - 32px);
+  text-align: center;
+  font-weight: 900;
+  font-size: clamp(16px, 3.6vw, 22px);
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+}
+#drill-feedback:empty {
+  display: none;
+}
+#drill-feedback[data-ok='1'] {
+  color: var(--green);
+}
+#drill-feedback[data-ok='0'] {
+  color: var(--red);
+}
+#drill-cover {
+  position: absolute;
+  inset: 0;
+  background: #0b2545;
+  color: #fff;
+  font-size: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: -1;
+}
+#drill-buttons {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0 16px;
+}
+.drill-btn {
+  min-width: 120px;
+}

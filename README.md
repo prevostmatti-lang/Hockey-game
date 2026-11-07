@@ -6,6 +6,8 @@ Objectif : apprendre à **lever la tête**, à **lire le jeu** et à **prendre l
 
 Le brief complet est dans [`docs/BRIEF.md`](docs/BRIEF.md).
 
+**📅 Programme d'entraînement** : 3 séances de 15 min par semaine, du 9 novembre 2026 à fin avril 2027, fondé sur les recommandations des fédérations et la recherche. Voir [`docs/PROGRAMME.md`](docs/PROGRAMME.md).
+
 ## Comment on joue
 
 Au premier lancement, l'enfant choisit **droitier** (palette à droite) ou **gaucher** (palette à gauche).
@@ -104,6 +106,9 @@ src/sim.js            simulation : patinage, palet, gardien, coéquipiers et adv
 src/world.js          rendu 3D (three.js) : patinoire, joueurs, caméra
 src/evaluate.js       note les options : lignes de passe, marquage, angle de tir, espace
 src/scenarios.js      les situations d'attaque et de défense
+src/generator.js      variantes de situations (miroir, décalages, numéros), vérifiées
+src/program.js        calendrier et contenu des séances du programme
+src/drills.js         exercices courts : Coup d'œil, Arrêt sur image, Mémoire de glace
 src/diagram.js        ralenti vu du dessus
 src/audio.js          sons synthétisés et voix off française
 sw.js                 fonctionnement hors ligne
