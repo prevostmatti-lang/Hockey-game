@@ -78,6 +78,8 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       to: data.to ? { ...data.to } : { x: data.x, z: data.z },
       face: 0,
       hasT: 0,
+      // Main du joueur : donnée par la situation, sinon on alterne (n° impair = gaucher) pour mélanger l'équipe.
+      hand: data.hand || (data.goalie || data.num == null || data.num % 2 === 0 ? 'R' : 'L'),
       ...extra,
     };
     a.face = angleTo(a, me);
@@ -136,7 +138,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
   function blade(p) {
     const yaw = p.isMe ? p.yaw : p.face;
     const f = fwd(yaw);
-    const side = p.isMe ? (hand === 'R' ? 1 : -1) : 1;
+    const side = p.isMe ? (hand === 'R' ? 1 : -1) : p.hand === 'L' ? -1 : 1;
     const r = rightOf(yaw);
     return { x: p.x + f.x * 0.85 + r.x * 0.32 * side, z: p.z + f.z * 0.85 + r.z * 0.32 * side };
   }

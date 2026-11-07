@@ -131,7 +131,7 @@ function loadScenario(scn) {
   G.shown = false;
   world.clearActors();
   world.setStickVisible(true);
-  G.meshes = G.sim.state.actors.map((a) => world.addActor({ team: a.team, num: a.num, goalie: a.goalie }));
+  G.meshes = G.sim.state.actors.map((a) => world.addActor({ team: a.team, num: a.num, goalie: a.goalie, hand: a.hand }));
   syncRender();
 }
 

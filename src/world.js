@@ -156,7 +156,7 @@ function makeBlade({ length = 0.3, height = 0.075, thick = 0.014, color = 0x1f24
   let ang = 0;
   for (let i = 0; i < n; i++) {
     // Légère courbure vers la face coup droit, plus marquée vers la pointe.
-    const a = ang + 0.06 * i;
+    const a = ang + 0.12 * i;
     const cx = x + (Math.cos(a) * seg) / 2;
     const cz = z + (Math.sin(a) * seg) / 2;
     const piece = new THREE.Mesh(new THREE.BoxGeometry(seg * 1.04, height, thick), mat);
@@ -198,7 +198,7 @@ function shaftBetween(a, b, mat, w = 0.03, d = 0.022) {
   return m;
 }
 
-function makePlayer({ team, num, goalie }) {
+function makePlayer({ team, num, goalie, hand = 'R' }) {
   const g = new THREE.Group();
   const jerseyColor = team ? COLORS.team : COLORS.opp;
   const jersey = std(jerseyColor);
@@ -233,17 +233,22 @@ function makePlayer({ team, num, goalie }) {
   // Le joueur tient sa crosse à droite (côté -x de son repère). Comme sur une vraie crosse,
   // la palette prolonge le manche vers l'avant : la pointe est la partie la plus éloignée du joueur.
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
-  const hands = new THREE.Vector3(-0.28, 1.0, 0.22);
-  const heel = new THREE.Vector3(-0.42, 0.0, 0.8);
-  g.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), hands, stickMat));
+  const hands = new THREE.Vector3(-0.34, 1.0, 0.24);
+  const heel = new THREE.Vector3(-0.28, 0.0, 0.82);
+  const stick = new THREE.Group();
+  stick.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), hands, stickMat));
   const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
   blade.position.copy(heel);
   const ux = heel.x - hands.x;
   const uz = heel.z - hands.z;
   const ul = Math.hypot(ux, uz);
   alongX(blade, ux / ul, uz / ul);
-  blade.scale.z = -1; // face coup droit tournée vers l'intérieur (côté du palet)
-  g.add(blade);
+  // Crosse tenue à droite : le creux de la palette (coup droit) regarde vers la gauche du joueur.
+  blade.scale.z = -1;
+  stick.add(blade);
+  // Gaucher : crosse de l'autre côté, palette courbée dans l'autre sens (miroir).
+  if (hand === 'L') stick.scale.x = -1;
+  g.add(stick);
 
   if (goalie) {
     g.scale.set(1.25, 1.05, 1.25);
@@ -402,8 +407,8 @@ export function createWorld(canvas) {
       pickables = [netHit];
     },
     /** Ajoute un joueur ; renvoie un objet avec setPos(x, z). */
-    addActor({ team, num, goalie, pickable }) {
-      const mesh = makePlayer({ team, num, goalie });
+    addActor({ team, num, goalie, pickable, hand }) {
+      const mesh = makePlayer({ team, num, goalie, hand });
       mesh.rotation.y = team ? 0 : Math.PI;
       actors.add(mesh);
       if (pickable) {

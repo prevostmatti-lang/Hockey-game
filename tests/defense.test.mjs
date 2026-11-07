@@ -90,7 +90,7 @@ test('bien marquer son joueur : bon placement et pas de but', () => {
 });
 
 test('lâcher l’écran : on glisse en ralentissant ; double tap : on freine net', () => {
-  const s = scn('d-u9-1');
+  const s = scn('d-u9-2'); // l'attaquant est loin devant : rien n'interrompt l'action
   const glide = createSim(s, level(s), 'R');
   const brake = createSim(s, level(s), 'R');
   for (const sim of [glide, brake]) for (let i = 0; i < 1.5 / DT; i++) sim.step(DT, { skate: true });
@@ -102,6 +102,7 @@ test('lâcher l’écran : on glisse en ralentissant ; double tap : on freine ne
     brake.step(DT, {});
   }
   assert.ok(glide.state.me.speed > v0 - 2 && glide.state.me.speed > 3, 'on glisse encore');
+  assert.equal(glide.state.over, null);
   assert.equal(brake.state.me.speed, 0, 'arrêté net');
 });
 
