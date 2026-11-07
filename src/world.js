@@ -230,23 +230,23 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   helmet.position.y = 1.62;
   g.add(helmet);
   // Crosse
-  // Le joueur tient sa crosse à droite (côté -x de son repère). Comme sur une vraie crosse,
-  // la palette prolonge le manche vers l'avant : la pointe est la partie la plus éloignée du joueur.
+  // Crosse d'un droitier (palette à droite, côté -x du repère du joueur) : la main du haut est la main
+  // GAUCHE, le manche traverse devant le corps jusqu'à la palette à droite, et le creux de la palette
+  // (coup droit) regarde vers la gauche. La palette prolonge le manche, pointe vers l'avant.
+  // Un gaucher est le miroir exact : main du haut droite, palette à gauche, courbée vers la droite.
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
-  const hands = new THREE.Vector3(-0.34, 1.0, 0.24);
-  const heel = new THREE.Vector3(-0.28, 0.0, 0.82);
+  const topHand = new THREE.Vector3(0.3, 1.0, 0.25); // bout du bras gauche
+  const heel = new THREE.Vector3(-0.28, 0.0, 0.9);
   const stick = new THREE.Group();
-  stick.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), hands, stickMat));
+  stick.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), topHand, stickMat));
   const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
   blade.position.copy(heel);
-  const ux = heel.x - hands.x;
-  const uz = heel.z - hands.z;
+  const ux = heel.x - topHand.x;
+  const uz = heel.z - topHand.z;
   const ul = Math.hypot(ux, uz);
   alongX(blade, ux / ul, uz / ul);
-  // Crosse tenue à droite : le creux de la palette (coup droit) regarde vers la gauche du joueur.
-  blade.scale.z = -1;
+  blade.scale.z = -1; // creux de la palette tourné vers la gauche du joueur
   stick.add(blade);
-  // Gaucher : crosse de l'autre côté, palette courbée dans l'autre sens (miroir).
   if (hand === 'L') stick.scale.x = -1;
   g.add(stick);
 
@@ -281,16 +281,14 @@ function buildMyStick() {
 function layoutMyStick(stick, vfov, aspect, side = 1) {
   const d = 1.1;
   const halfH = Math.tan(vfov / 2) * d;
-  const halfW = halfH * aspect;
   const yb = -halfH * 0.8; // hauteur de la glace sous la palette, dans le repère de la caméra
   const { shaft, blade, puck } = stick.userData;
 
-  // Talon de la palette, un peu du côté de la main ; la lame part vers le centre et légèrement vers l'avant.
-  // L'ensemble palette + palet est un peu basculé vers la caméra : on les voit « de dessus »,
-  // comme quand on baisse les yeux sur son palet (sinon la lame cache le palet).
-  const heel = new THREE.Vector3(side * 0.2, yb, -d);
-  const hands = new THREE.Vector3(side * Math.min(halfW * 0.95, 1.0), yb + 0.75, -0.35);
-  // La palette prolonge le manche (vue de dessus) : même direction que du manche vers le talon.
+  // Même règle qu'une vraie crosse : la main du haut (gauche pour un droitier) est devant le ventre,
+  // le manche descend en diagonale jusqu'à la palette, du côté de la palette (droite pour un droitier).
+  // L'ensemble palette + palet est un peu basculé vers la caméra pour qu'on voie le palet « de dessus ».
+  const heel = new THREE.Vector3(side * 0.28, yb, -1.05);
+  const hands = new THREE.Vector3(-side * 0.42, -0.55, -0.3);
   const hx = heel.x - hands.x;
   const hz = heel.z - hands.z;
   const hl = Math.hypot(hx, hz);
@@ -298,16 +296,19 @@ function layoutMyStick(stick, vfov, aspect, side = 1) {
   const uz = hz / hl;
   blade.clear();
   blade.position.copy(heel);
-  blade.rotation.set(0.5, 0, 0);
+  blade.rotation.set(0.65, 0, 0);
   const b = makeBlade({ length: 0.32, height: 0.075, thick: 0.016 });
   alongX(b, ux, uz);
-  if (side < 0) b.scale.z = -1; // miroir pour les gauchers : la face coup droit reste vers l'avant
+  // Creux de la palette (coup droit) vers la gauche pour un droitier, vers la droite pour un gaucher.
+  b.scale.z = side > 0 ? -1 : 1;
   blade.add(b);
-  // Palet collé à la face coup droit, au milieu de la palette.
+  // Palet contre le coup droit, devant le milieu de la palette.
+  const nx = side * uz;
+  const nz = -side * ux;
   blade.add(puck);
-  puck.position.set(ux * 0.17 + 0.03 * side, 0.018, uz * 0.17 - 0.1);
+  puck.position.set(ux * 0.15 + nx * 0.1, 0.018, uz * 0.15 + nz * 0.1);
 
-  // Manche : du talon jusqu'aux mains, hors de l'écran sur le côté.
+  // Manche : du talon jusqu'aux mains, devant le ventre (hors de l'écran, en bas).
   shaft.clear();
   const mat = std(0x1f2430, { roughness: 0.5 });
   shaft.add(shaftBetween(new THREE.Vector3(heel.x, yb + 0.05, heel.z), hands, mat, 0.032, 0.024));
