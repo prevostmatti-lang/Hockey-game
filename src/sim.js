@@ -3,10 +3,16 @@
 //
 // Repère : x = largeur (-13..13), z = longueur (-30..30), le but adverse est en z = +26.
 // Orientation (yaw) : la direction avant est (sin yaw, cos yaw) ; augmenter yaw tourne vers la gauche.
+//
+// Deux modes :
+//   - attaque (par défaut) : le joueur reçoit le palet et attaque le but en z = +26 ;
+//   - défense (scn.mode === 'defense') : un adversaire a le palet et attaque notre but en z = -26.
+//     Le joueur doit tenir sa mission (scn.duty) et récupérer le palet sans encaisser de but.
 
 import { evaluate, gradeDecision, NET } from './evaluate.js';
 
 const GOAL_Z = 26;
+const OWN_NET = { x: 0, z: -26 };
 const POST = 0.915;
 const GOALIE_Z = 25.2;
 const GOALIE_HALF = 0.45;
@@ -15,6 +21,7 @@ const LIMIT_Z = 29.4;
 const PUCK_FRICTION = 1.0;
 const ME_MAX = 6.5;
 const ME_MAX_PUCK = 5.6;
+const ME_BACK = 3.8; // patinage à reculons
 const MATE_SPEED = 4.2;
 
 export const fwd = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
@@ -40,13 +47,15 @@ function segDist(p, a, b) {
  * @param hand  'R' (palette à droite) ou 'L' (palette à gauche)
  */
 export function createSim(scn, level, hand = 'R', rand = Math.random) {
+  const defense = scn.mode === 'defense';
+  const carrierData = defense ? scn.opponents.find((o) => o.carrier) : null;
   const me = {
     id: 'me',
     isMe: true,
     team: true,
     x: scn.me.x,
     z: scn.me.z,
-    yaw: angleTo(scn.me, NET),
+    yaw: angleTo(scn.me, defense ? carrierData : NET),
     head: 0,
     speed: 0,
     vx: 0,
@@ -73,14 +82,22 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     actors.push(a);
     return a;
   };
-  const passer = mk(scn.passer, { team: true, role: 'passer' });
-  for (const t of scn.teammates) mk(t, { team: true, role: 'support' });
+  const passer = defense ? null : mk(scn.passer, { team: true, role: 'passer' });
+  for (const t of scn.teammates) {
+    const role = t.goalie ? 'goalie' : t.mark != null ? 'mark' : 'support';
+    const a = mk(t, { team: true, goalie: !!t.goalie, role, mark: t.mark });
+    if (a.goalie) a.face = 0;
+  }
+  let carrier = null;
   for (const o of scn.opponents) {
-    const role = o.goalie ? 'goalie' : o.presser ? 'presser' : o.cover != null ? 'cover' : 'zone';
+    let role = o.goalie ? 'goalie' : o.presser ? 'presser' : o.cover != null ? 'cover' : 'zone';
+    if (defense && !o.goalie) role = 'attacker';
     const a = mk(o, { team: false, goalie: !!o.goalie, role, cover: o.cover });
     if (a.goalie) a.face = Math.PI;
+    if (o.carrier) carrier = a;
   }
-  const goalie = actors.find((a) => a.goalie);
+  const goalie = actors.find((a) => a.goalie && !a.team);
+  const ourGoalie = actors.find((a) => a.goalie && a.team);
 
   const s = {
     t: 0,
@@ -91,7 +108,14 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     actors,
     passer,
     goalie,
-    puck: { x: 0, z: 0, y: 0.02, vx: 0, vz: 0, owner: passer, releasedBy: null, releaseT: -9, shot: false, team: true },
+    ourGoalie,
+    defense,
+    puck: { x: 0, z: 0, y: 0.02, vx: 0, vz: 0, owner: defense ? carrier : passer, releasedBy: null, releaseT: -9, shot: false, team: !defense },
+    pokeT: 0,
+    dutyT: 0,
+    dutyOkT: 0,
+    dutyNow: null,
+    keyMoment: null,
     over: null,
     overT: 0,
     passDone: false,
@@ -121,6 +145,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
 
   function end(type, extra = {}) {
     if (s.over) return;
+    if (defense && !s.keyMoment) s.keyMoment = { t: s.t, me: { x: me.x, z: me.z }, ideal: s.dutyNow ? s.dutyNow.ideal : null };
     s.over = { type, t: s.t, x: s.puck.x, z: s.puck.z, ...extra };
     emit('over', { over: s.over });
   }
@@ -161,9 +186,11 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     return { x: target.x + (target.vx || 0) * t, z: target.z + (target.vz || 0) * t };
   }
 
-  function laneClear(from, to, width) {
-    return !actors.some((o) => {
-      if (o.team || o.goalie) return false;
+  /** Aucun joueur de l'équipe adverse (`team` = équipe qui joue le palet) sur la trajectoire ? */
+  function laneClear(from, to, width, team = true) {
+    const skaters = team ? actors : [me, ...actors];
+    return !skaters.some((o) => {
+      if (o.team === team || o.goalie) return false;
       const { d, t } = segDist(o, from, to);
       return t > 0.08 && t < 0.92 && d < width;
     });
@@ -196,9 +223,10 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
   function stepMe(dt, input) {
     const holding = s.puck.owner === me;
     const max = holding ? ME_MAX_PUCK : ME_MAX;
-    if (input.skate) me.speed = Math.min(max, me.speed + 7 * dt);
-    else me.speed = Math.max(0, me.speed - 2.4 * dt);
-    if (input.skate || me.speed > 0.4) me.yaw = wrap(me.yaw - clamp(input.turn || 0, -1, 1) * 2.4 * dt);
+    if (input.back) me.speed = Math.max(-ME_BACK, me.speed - 7 * dt);
+    else if (input.skate) me.speed = Math.min(max, me.speed + 7 * dt);
+    else me.speed -= Math.sign(me.speed) * Math.min(Math.abs(me.speed), 5 * dt); // freinage
+    if (input.skate || input.back || Math.abs(me.speed) > 0.4) me.yaw = wrap(me.yaw - clamp(input.turn || 0, -1, 1) * 2.4 * dt);
     const headTarget = clamp(input.head || 0, -1, 1) * 2.3;
     me.head += (headTarget - me.head) * Math.min(1, dt * 10);
     const f = fwd(me.yaw);
@@ -220,6 +248,17 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
 
   function mateAI(a, dt) {
     const p = s.puck;
+    if (a.goalie) return goalieAI(a, dt);
+    if (a.role === 'mark') {
+      // Défenseur partenaire : reste entre « son » attaquant et notre but.
+      const target = actors.find((o) => !o.team && o.num === a.mark);
+      if (target) {
+        const d = dist(target, OWN_NET) || 1;
+        moveTo(a, { x: target.x + ((OWN_NET.x - target.x) / d) * 2.2, z: target.z + ((OWN_NET.z - target.z) / d) * 2.2 }, 4.2, dt);
+      }
+      a.face = angleTo(a, p);
+      return;
+    }
     if (p.owner === a) {
       a.hasT += dt;
       if (a.role === 'passer') {
@@ -268,27 +307,37 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     a.face = angleTo(a, p);
   }
 
+  /** Gardien : se place sur la bissectrice, puis plonge vers la trajectoire d'un tir (après un temps de réaction). */
+  function goalieAI(a, dt) {
+    const p = s.puck;
+    const netZ = a.team ? -GOAL_Z : GOAL_Z;
+    const sign = Math.sign(netZ);
+    const planeZ = netZ - sign * (GOAL_Z - GOALIE_Z);
+    a.z = planeZ;
+    let tx;
+    // Notre gardien est un peu moins vif que le leur : en défense, c'est d'abord au joueur de travailler.
+    const reaction = (level.goalieReaction ?? 0.2) + (a.team ? 0.12 : 0);
+    const speed = level.goalie * (a.team ? 0.6 : 1);
+    const reacting = p.shot && s.t - p.releaseT < reaction;
+    if (reacting) tx = a.x;
+    else if (!p.owner && p.vz * sign > 2 && (planeZ - p.z) * sign > 0) {
+      const tt = (planeZ - p.z) / p.vz;
+      tx = p.x + p.vx * tt;
+    } else {
+      const d = Math.hypot(p.x, netZ - p.z) || 1;
+      tx = (p.x / d) * 0.8;
+    }
+    tx = clamp(tx, -0.8, 0.8);
+    const step = clamp(tx - a.x, -speed * dt, speed * dt);
+    a.x += step;
+    a.vx = step / dt;
+    a.face = angleTo(a, p);
+  }
+
   function oppAI(a, dt) {
     const p = s.puck;
-    if (a.goalie) {
-      let tx;
-      // Le gardien a un petit temps de réaction après un tir.
-      const reacting = p.shot && s.t - p.releaseT < (level.goalieReaction ?? 0.2);
-      if (reacting) tx = a.x;
-      else if (!p.owner && p.vz > 2 && p.z < GOALIE_Z) {
-        const tt = (GOALIE_Z - p.z) / p.vz;
-        tx = p.x + p.vx * tt;
-      } else {
-        const d = Math.hypot(p.x, GOAL_Z - p.z) || 1;
-        tx = (p.x / d) * 0.8;
-      }
-      tx = clamp(tx, -0.8, 0.8);
-      const step = clamp(tx - a.x, -level.goalie * dt, level.goalie * dt);
-      a.x += step;
-      a.vx = step / dt;
-      a.face = angleTo(a, p);
-      return;
-    }
+    if (a.goalie) return goalieAI(a, dt);
+    if (a.role === 'attacker') return attackerAI(a, dt);
     if (p.owner === a) return;
     // Le passeur de départ n'est pas attaqué : la situation commence quand le joueur reçoit le palet.
     // Il laisse un petit temps au joueur après la réception (plus long chez les petits).
@@ -323,6 +372,97 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     a.face = angleTo(a, p);
   }
 
+
+  // ---------- attaquants adverses (mode défense) ----------
+  const defenders = () => [me, ...actors.filter((t) => t.team && !t.goalie)];
+
+  function keyMoment() {
+    if (s.keyMoment) return;
+    s.keyMoment = { t: s.t, me: { x: me.x, z: me.z }, ideal: s.dutyNow ? s.dutyNow.ideal : null };
+  }
+
+  function attackerAI(a, dt) {
+    const p = s.puck;
+    if (p.owner === a) {
+      a.hasT += dt;
+      const toNet = dist(a, OWN_NET);
+      const shootAim = () => angleTo(blade(a), { x: ourGoalie && ourGoalie.x > 0 ? -0.8 : 0.8, z: -GOAL_Z });
+      if (a.hasT > 0.35 && toNet < 11 && laneClear(blade(a), OWN_NET, 1.1, false)) {
+        keyMoment();
+        launch(a, shootAim(), 19, a, true);
+        emit('oppShot', { num: a.num });
+        return;
+      }
+      // Pressé par le joueur (à moins de 3,5 m) ou collé par un coéquipier.
+      const pressured = dist(me, a) < 3.5 || defenders().some((d) => dist(d, a) < 1.5);
+      if (a.hasT > level.passReact && (pressured || toNet < 9)) {
+        let best = null;
+        for (const m of actors) {
+          if (m.team || m === a || m.goalie) continue;
+          const open = !defenders().some((d) => dist(d, m) < 2);
+          if (open && laneClear(blade(a), m, 1.3, false)) {
+            const sc = -dist(m, OWN_NET);
+            if (!best || sc > best.sc) best = { m, sc };
+          }
+        }
+        if (best) {
+          keyMoment();
+          const target = lead(blade(a), best.m, 15);
+          launch(a, angleTo(blade(a), target), 15, a, false);
+          emit('oppPass', { from: a.num, to: best.m.num });
+          return;
+        }
+      }
+      if (a.hasT > 7) {
+        keyMoment();
+        launch(a, shootAim(), 17, a, true);
+        emit('oppShot', { num: a.num });
+        return;
+      }
+      // Fonce vers l'enclave en contournant le défenseur qui se trouve devant.
+      const target = { x: clamp(a.x * 0.6, -4, 4), z: -19 };
+      const blocker = defenders().find((d) => dist(d, a) < 3.5 && dist(d, OWN_NET) < dist(a, OWN_NET));
+      if (blocker) target.x = clamp(a.x + (a.x >= blocker.x ? 3 : -3), -11, 11);
+      moveTo(a, target, level.attack, dt);
+      a.face = angleTo(a, OWN_NET);
+      return;
+    }
+    if (!p.owner && Math.hypot(p.vx, p.vz) < 3 && dist(a, p) < 5) moveTo(a, p, 3.6, dt);
+    else moveTo(a, a.to, level.attack * 0.9, dt);
+    a.face = angleTo(a, p);
+  }
+
+  /** Mission du joueur en défense : est-il bien placé, et où aurait-il dû être ? */
+  function dutyState() {
+    const p = s.puck;
+    const c = p.owner && !p.owner.team && !p.owner.goalie ? p.owner : null;
+    if (!c) return null;
+    const [kind, numStr] = String(scn.duty).split(':');
+    const num = Number(numStr);
+    if (kind === 'goalside') {
+      const d = dist(c, OWN_NET) || 1;
+      const ideal = { x: c.x + ((OWN_NET.x - c.x) / d) * 2, z: c.z + ((OWN_NET.z - c.z) / d) * 2 };
+      const ok = dist(me, OWN_NET) < dist(c, OWN_NET) - 0.3 && segDist(me, c, OWN_NET).d < 1.8;
+      return { ok, ideal };
+    }
+    const target = actors.find((o) => !o.team && o.num === num);
+    if (!target) return null;
+    if (kind === 'lane') {
+      if (target === c) return null;
+      const from = blade(c);
+      const ideal = { x: from.x + (target.x - from.x) * 0.55, z: from.z + (target.z - from.z) * 0.55 };
+      const r = segDist(me, from, target);
+      // Sur la ligne de passe, ou collé au receveur du côté du but : dans les deux cas la passe est coupée.
+      const onLane = r.d < 2 && r.t > 0.08 && r.t < 0.92;
+      const onReceiver = dist(me, target) < 2.5 && dist(me, OWN_NET) < dist(target, OWN_NET);
+      return { ok: onLane || onReceiver, ideal };
+    }
+    // mark
+    const d = dist(target, OWN_NET) || 1;
+    const ideal = { x: target.x + ((OWN_NET.x - target.x) / d) * 1.2, z: target.z + ((OWN_NET.z - target.z) / d) * 1.2 };
+    return { ok: dist(me, target) < 2.5 && dist(me, OWN_NET) < dist(target, OWN_NET), ideal };
+  }
+
   // ---------- palet ----------
   function stepPuck(dt) {
     const p = s.puck;
@@ -346,30 +486,36 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     p.y = p.shot && sp > 8 ? 0.25 : 0.02;
 
     if (!s.over) {
-      // Le gardien : on regarde où le palet traverse sa ligne.
-      if (goalie && pz < GOALIE_Z && p.z >= GOALIE_Z) {
-        const k = (GOALIE_Z - pz) / (p.z - pz);
-        const x = px + (p.x - px) * k;
-        if (Math.abs(x - goalie.x) < GOALIE_HALF) {
-          p.x = x;
-          p.z = GOALIE_Z - 0.3;
-          gain(goalie);
-          end('save');
-          return;
+      for (const net of [
+        { z: GOAL_Z, sign: 1, keeper: goalie, save: 'save', goal: 'goal', wide: 'wide' },
+        { z: -GOAL_Z, sign: -1, keeper: ourGoalie, save: 'saveUs', goal: 'goalAgainst', wide: 'wideAgainst' },
+      ]) {
+        const plane = net.z - net.sign * (GOAL_Z - GOALIE_Z);
+        const crossed = (z0, z1, zz) => (z0 - zz) * net.sign < 0 && (z1 - zz) * net.sign >= 0;
+        if (net.keeper && crossed(pz, p.z, plane)) {
+          const k = (plane - pz) / (p.z - pz);
+          const x = px + (p.x - px) * k;
+          if (Math.abs(x - net.keeper.x) < (net.keeper.team ? 0.38 : GOALIE_HALF)) {
+            p.x = x;
+            p.z = plane - net.sign * 0.3;
+            gain(net.keeper);
+            end(net.save);
+            return;
+          }
         }
-      }
-      if (pz < GOAL_Z && p.z >= GOAL_Z) {
-        const k = (GOAL_Z - pz) / (p.z - pz);
-        const x = px + (p.x - px) * k;
-        if (Math.abs(x) < POST) {
-          p.x = x;
-          p.z = GOAL_Z + 0.5;
-          p.vx = 0;
-          p.vz = 0;
-          end('goal', { scorer: p.releasedBy });
-          return;
+        if (crossed(pz, p.z, net.z)) {
+          const k = (net.z - pz) / (p.z - pz);
+          const x = px + (p.x - px) * k;
+          if (Math.abs(x) < POST) {
+            p.x = x;
+            p.z = net.z + net.sign * 0.5;
+            p.vx = 0;
+            p.vz = 0;
+            end(net.goal, { scorer: p.releasedBy });
+            return;
+          }
+          if (p.shot) end(net.wide);
         }
-        if (p.shot) end('wide');
       }
     }
     // Bandes
@@ -386,8 +532,11 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     // Qui récupère le palet ?
     const since = s.t - p.releaseT;
     const sp2 = Math.hypot(p.vx, p.vz);
-    if (!(p.releasedBy === me && since < 0.35) && dist(blade(me), p) < 1.1 && sp2 < 27) {
+    const meReach = defense && !p.team ? (since < 0.15 ? 0 : sp2 > 12 ? 0.75 : 1.1) : 1.1;
+    if (!(p.releasedBy === me && since < 0.35) && dist(blade(me), p) < meReach && sp2 < 27) {
+      const how = !p.team && p.shot ? 'block' : !p.team && sp2 > 0.5 ? 'intercept' : 'loose';
       gain(me);
+      if (defense) end('recovered', { how });
       return;
     }
     for (const a of actors) {
@@ -395,6 +544,23 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       // La première passe (du passeur vers le joueur) est pour lui seul.
       if (p.releasedBy && p.releasedBy.role === 'passer' && !s.received) continue;
       const b = blade(a);
+      if (defense) {
+        if (dist(b, p) < 0.95 || dist(a, p) < 0.95) {
+          if (a.team) {
+            if (sp2 < 4) {
+              gain(a);
+              end('recovered', { how: 'mate', num: a.num });
+              return;
+            }
+            continue;
+          }
+          if (since > 0.12 && sp2 < 24) {
+            gain(a);
+            return;
+          }
+        }
+        continue;
+      }
       if (a.team) {
         if (dist(b, p) < 1.3 || dist(a, p) < 1.0) {
           if (sp2 > 24) {
@@ -420,6 +586,20 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
 
   function stepSteal(dt) {
     const p = s.puck;
+    if (defense) {
+      // Mise en échec avec la crosse : palette sur le palet (ou contact) pendant un court instant.
+      const c = p.owner;
+      if (c && !c.team && !c.goalie && (dist(blade(me), p) < 0.85 || dist(me, c) < 0.9)) {
+        s.pokeT += dt;
+        // Par derrière, impossible : il faut d'abord se replacer entre l'attaquant et le but.
+        const behind = dist(me, OWN_NET) > dist(c, OWN_NET) + 0.5;
+        if (!behind && s.pokeT >= level.poke) {
+          gain(me);
+          end('recovered', { how: 'poke' });
+        }
+      } else s.pokeT = Math.max(0, s.pokeT - dt);
+      return;
+    }
     if (!p.owner || !p.owner.team || p.owner.role === 'passer') {
       s.stealT = 0;
       return;
@@ -447,6 +627,16 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     for (const a of actors) (a.team ? mateAI : oppAI)(a, dt);
     stepPuck(dt);
     stepSteal(dt);
+    if (defense && !s.over) {
+      const st = dutyState();
+      if (st) {
+        s.dutyNow = st;
+        if (s.t > 1.2) {
+          s.dutyT += dt;
+          if (st.ok) s.dutyOkT += dt;
+        }
+      }
+    }
     if (!s.over && s.t >= level.time) end('time');
     s.trailT += dt;
     if (s.trailT >= 0.1) {

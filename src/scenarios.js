@@ -20,10 +20,14 @@
 //   passDelay délai avant que le passeur envoie le palet (s)
 //   steal     temps au contact avant que le défenseur prenne le palet (s)
 //   pressDelay temps laissé au joueur après la réception avant que le défenseur vienne au contact (s)
+// En défense :
+//   attack    vitesse du porteur adverse (m/s)
+//   passReact temps avant que le porteur adverse cherche une passe quand il est pressé (s)
+//   poke      temps de contact crosse-palet nécessaire pour récupérer le palet (s)
 export const LEVELS = [
-  { id: 'U9', name: 'U9', ages: '6-8 ans', color: '#2fbf71', time: 30, presser: 2.4, goalie: 2.2, goalieReaction: 0.3, assist: 0.24, passDelay: 2.5, steal: 0.9, pressDelay: 1.5 },
-  { id: 'U11', name: 'U11', ages: '9-10 ans', color: '#f5a524', time: 22, presser: 3.4, goalie: 3.0, goalieReaction: 0.22, assist: 0.13, passDelay: 2.0, steal: 0.5, pressDelay: 0.7 },
-  { id: 'U13', name: 'U13', ages: '11-12 ans', color: '#e5484d', time: 18, presser: 4.4, goalie: 3.8, goalieReaction: 0.14, assist: 0.06, passDelay: 1.6, steal: 0.35, pressDelay: 0.2 },
+  { id: 'U9', name: 'U9', ages: '6-8 ans', color: '#2fbf71', time: 30, presser: 2.4, goalie: 2.2, goalieReaction: 0.3, assist: 0.24, passDelay: 2.5, steal: 0.9, pressDelay: 1.5, attack: 2.6, passReact: 1.2, poke: 0.15 },
+  { id: 'U11', name: 'U11', ages: '9-10 ans', color: '#f5a524', time: 22, presser: 3.4, goalie: 3.0, goalieReaction: 0.22, assist: 0.13, passDelay: 2.0, steal: 0.5, pressDelay: 0.7, attack: 3.4, passReact: 0.8, poke: 0.25 },
+  { id: 'U13', name: 'U13', ages: '11-12 ans', color: '#e5484d', time: 18, presser: 4.4, goalie: 3.8, goalieReaction: 0.14, assist: 0.06, passDelay: 1.6, steal: 0.35, pressDelay: 0.2, attack: 4.4, passReact: 0.45, poke: 0.35 },
 ];
 
 // Rôles des adversaires : `presser` (vient au contact du porteur), `cover: n°` (marque un coéquipier),
@@ -160,5 +164,153 @@ export const SCENARIOS = [
     ],
     expect: 'pass:44',
     lesson: 'Quand tout est fermé devant le but, le défenseur à la ligne bleue est souvent libre.',
+  },
+];
+
+// =====================================================================
+// Situations défensives
+// =====================================================================
+// L'adversaire a le palet (`carrier`) et attaque NOTRE but, en z = -26.
+// `duty` est la mission du joueur, qui sert à noter son placement :
+//   'goalside'  rester entre le porteur et le but ;
+//   'lane:n°'   couper la ligne de passe entre le porteur et l'attaquant n° ;
+//   'mark:n°'   marquer l'attaquant n° (rester près de lui, du côté du but).
+// Les coéquipiers avec `mark: n°` marquent cet attaquant.
+
+const OUR_GOALIE = { goalie: true, x: 0, z: -25.2 };
+
+export const DEFENSE_SCENARIOS = [
+  // ---------- U9 ----------
+  {
+    id: 'd-u9-1',
+    level: 'U9',
+    mode: 'defense',
+    title: 'Le 1 contre 1',
+    me: { x: 0, z: -8 },
+    teammates: [OUR_GOALIE],
+    opponents: [{ num: 17, x: 2, z: 8, carrier: true }],
+    duty: 'goalside',
+    mission: 'Reste entre le n°17 et ton but, puis va chercher le palet avec ta crosse.',
+    lesson: 'En défense, place-toi toujours entre l’attaquant et ton but.',
+  },
+  {
+    id: 'd-u9-2',
+    level: 'U9',
+    mode: 'defense',
+    title: 'Le repli',
+    me: { x: 4, z: 8 },
+    teammates: [OUR_GOALIE],
+    opponents: [{ num: 17, x: -3, z: 4, carrier: true }],
+    duty: 'goalside',
+    mission: 'Le n°17 t’a dépassé ! Patine vite vers ton but pour te remettre devant lui.',
+    lesson: 'Quand un attaquant t’a dépassé, rentre vite vers ton but pour te replacer devant lui.',
+  },
+  {
+    id: 'd-u9-3',
+    level: 'U9',
+    mode: 'defense',
+    title: 'Le joueur devant le but',
+    me: { x: 3, z: -12 },
+    teammates: [OUR_GOALIE, { num: 5, x: -6, z: -15, mark: 17 }],
+    opponents: [
+      { num: 17, x: -9, z: -12, carrier: true },
+      { num: 22, x: 4, z: -6, to: { x: 1, z: -18 } },
+    ],
+    duty: 'mark:22',
+    mission: 'Ton coéquipier n°5 s’occupe du porteur. Toi, surveille le n°22 qui fonce vers le but.',
+    lesson: 'Le joueur seul devant ton but est le plus dangereux : reste collé à lui.',
+  },
+
+  // ---------- U11 ----------
+  {
+    id: 'd-u11-1',
+    level: 'U11',
+    mode: 'defense',
+    title: '2 contre 1 en défense',
+    me: { x: 0, z: -10 },
+    teammates: [OUR_GOALIE],
+    opponents: [
+      { num: 17, x: -4, z: 6, carrier: true },
+      { num: 22, x: 5, z: 6, to: { x: 4, z: -16 } },
+    ],
+    duty: 'lane:22',
+    mission: 'Ils sont deux contre toi. Coupe la passe vers le n°22 et laisse ton gardien s’occuper du tir.',
+    lesson: 'En 2 contre 1, empêche la passe : un tir de loin, ton gardien peut l’arrêter.',
+  },
+  {
+    id: 'd-u11-2',
+    level: 'U11',
+    mode: 'defense',
+    title: "L'enclave",
+    me: { x: -2, z: -21 },
+    teammates: [OUR_GOALIE, { num: 3, x: 7, z: -20, mark: 17 }],
+    opponents: [
+      { num: 17, x: 9, z: -18, carrier: true },
+      { num: 22, x: -1, z: -10, to: { x: 0, z: -17 } },
+    ],
+    duty: 'mark:22',
+    mission: 'Le n°3 s’occupe du porteur. Toi, garde l’enclave : ne laisse pas le n°22 seul devant le but.',
+    lesson: 'Devant ton but, marque l’attaquant qui arrive dans l’enclave, entre lui et le but.',
+  },
+  {
+    id: 'd-u11-3',
+    level: 'U11',
+    mode: 'defense',
+    title: 'Le repli défensif',
+    me: { x: -2, z: 4 },
+    teammates: [OUR_GOALIE, { num: 4, x: 3, z: -12, mark: 17 }],
+    opponents: [
+      { num: 17, x: 5, z: 0, carrier: true },
+      { num: 22, x: -6, z: 2, to: { x: -5, z: -17 } },
+    ],
+    duty: 'mark:22',
+    mission: 'Ton défenseur n°4 prend le porteur. Rentre vite et suis le n°22 jusqu’au but.',
+    lesson: 'En repli, l’attaquant qui fonce au but sans palet doit être suivi jusqu’au bout.',
+  },
+
+  // ---------- U13 ----------
+  {
+    id: 'd-u13-1',
+    level: 'U13',
+    mode: 'defense',
+    title: '1 contre 1 rapide',
+    me: { x: 0, z: -6 },
+    teammates: [OUR_GOALIE],
+    opponents: [{ num: 17, x: -3, z: 10, carrier: true }],
+    duty: 'goalside',
+    mission: 'Le n°17 arrive vite : recule en restant devant lui et attends le bon moment pour piquer le palet.',
+    lesson: 'Contre un attaquant rapide, recule en gardant ta position, puis attaque le palet avec ta crosse.',
+  },
+  {
+    id: 'd-u13-2',
+    level: 'U13',
+    mode: 'defense',
+    title: '3 contre 2',
+    me: { x: -3, z: -10 },
+    teammates: [OUR_GOALIE, { num: 4, x: 3, z: -10, mark: 28 }],
+    opponents: [
+      { num: 17, x: 0, z: 6, carrier: true },
+      { num: 22, x: -8, z: 5, to: { x: -6, z: -16 } },
+      { num: 28, x: 8, z: 5, to: { x: 6, z: -16 } },
+    ],
+    duty: 'lane:22',
+    mission: 'Le n°4 marque le n°28. Toi, coupe la passe vers le n°22 sur ton côté.',
+    lesson: 'En infériorité, chaque défenseur coupe une ligne de passe ; le gardien prend le tireur.',
+  },
+  {
+    id: 'd-u13-3',
+    level: 'U13',
+    mode: 'defense',
+    title: 'Le joueur oublié',
+    me: { x: -4, z: -14 },
+    teammates: [OUR_GOALIE, { num: 4, x: 5, z: -18, mark: 28 }, { num: 6, x: -8, z: -19, mark: 17 }],
+    opponents: [
+      { num: 17, x: -10, z: -22, carrier: true },
+      { num: 22, x: 2, z: -12, to: { x: 0, z: -16 } },
+      { num: 28, x: 6, z: -20, to: { x: 5, z: -21 } },
+    ],
+    duty: 'mark:22',
+    mission: 'Tes coéquipiers marquent le n°17 et le n°28. Repère le joueur que personne ne surveille.',
+    lesson: 'Regarde qui n’est pas marqué : c’est lui que tu dois prendre.',
   },
 ];

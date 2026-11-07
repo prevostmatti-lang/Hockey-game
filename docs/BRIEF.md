@@ -33,6 +33,21 @@ Une série compte 3 situations, comme une « présence » sur la glace.
   - **Garder le palet** est bon s'il y a de l'espace devant soi.
 - **🥅 But** : l'équipe a marqué.
 
+## Mode Défense
+L'adversaire a le palet et attaque notre but. Chaque situation donne une mission :
+- **rester entre le porteur et le but** : 1 contre 1, repli ;
+- **couper la passe** : 2 contre 1, 3 contre 2 ;
+- **marquer un joueur** : l'enclave, le joueur oublié.
+
+Le joueur peut patiner à reculons en tirant le doigt vers le bas, et il freine en levant le doigt. Il récupère le palet avec sa crosse, mais **jamais par derrière**. S'il fonce sur le porteur et oublie sa mission, l'attaquant laissé seul reçoit la passe et marque.
+
+Les 3 étoiles en défense :
+- **👀 Radar** : tous les attaquants repérés.
+- **📍 Placement** : la mission est tenue.
+- **💪 Récupéré** : le palet est récupéré sans encaisser de but. Un arrêt du gardien ne compte pas.
+
+Le ralenti montre où le joueur aurait dû être, avec un rond vert.
+
 ## Adaptation à l'âge
 | | U9 (6-8 ans) | U11 (9-10 ans) | U13 (11-12 ans) |
 |---|---|---|---|
@@ -51,7 +66,7 @@ Voix off française, peu de texte, gros boutons, sons simples.
 
 ## Suite proposée
 1. Faire tester le prototype à quelques enfants de chaque catégorie et observer s'ils tournent la tête.
-2. Ajouter des situations : sortie de zone, jeu en infériorité, replacement défensif.
+2. Ajouter des situations : sortie de zone, jeu en infériorité, mise en échec contre la bande.
 3. Ajouter un mode « Tête haute » : conduire le palet du doigt tout en réagissant à des signaux visuels.
 4. Ajouter un **volet « Mains » hors écran** : défis de maniement de crosse à la maison avec chrono, puis comptage par la caméra.
 5. Ajouter un avatar personnalisable aux couleurs du club, avec des badges.

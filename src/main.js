@@ -1,8 +1,9 @@
 // « Tête haute ! » : le joueur patine en vue première personne, passe et tire d'un swipe.
 //   - doigt appuyé : patiner ; le glisser à gauche ou à droite : tourner
 //   - swipe vers le haut : passe ou tir, dans la direction du swipe, d'autant plus fort que le swipe est rapide
+//   - doigt glissé vers le bas : patiner à reculons (utile en défense)
 //   - boutons 👀 : regarder par-dessus l'épaule
-import { LEVELS, SCENARIOS } from './scenarios.js';
+import { LEVELS, SCENARIOS, DEFENSE_SCENARIOS } from './scenarios.js';
 import { explain, describeOption } from './evaluate.js';
 import { createSim, angleTo, wrap } from './sim.js';
 import { createWorld } from './world.js';
@@ -21,6 +22,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const G = {
   phase: 'menu',
   hand: null,
+  mode: 'attack',
   level: null,
   queue: [],
   index: 0,
@@ -69,14 +71,23 @@ function renderMenu() {
   const best = load(STORE_KEY, { best: {} }).best || {};
   const list = $('#levels');
   list.innerHTML = '';
-  for (const l of LEVELS) {
-    const n = SCENARIOS.filter((s) => s.level === l.id).length;
-    const b = document.createElement('button');
-    b.className = 'level';
-    b.style.setProperty('--c', l.color);
-    b.innerHTML = `<span class="lv-name">${l.name}</span><span class="lv-ages">${l.ages}</span><span class="lv-stars">⭐ ${best[l.id] || 0} / ${n * 3}</span>`;
-    b.addEventListener('click', () => startLevel(l.id));
-    list.appendChild(b);
+  for (const mode of ['attack', 'defense']) {
+    const h = document.createElement('p');
+    h.className = 'mode-title';
+    h.textContent = mode === 'attack' ? '⚔️ Attaque : marque un but' : '🛡️ Défense : protège ton but';
+    list.appendChild(h);
+    const row = document.createElement('div');
+    row.className = 'levels';
+    for (const l of LEVELS) {
+      const n = scenariosFor(mode, l.id).length;
+      const b = document.createElement('button');
+      b.className = 'level';
+      b.style.setProperty('--c', l.color);
+      b.innerHTML = `<span class="lv-name">${l.name}</span><span class="lv-ages">${l.ages}</span><span class="lv-stars">⭐ ${best[bestKey(mode, l.id)] || 0} / ${n * 3}</span>`;
+      b.addEventListener('click', () => startLevel(l.id, mode));
+      row.appendChild(b);
+    }
+    list.appendChild(row);
   }
   $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
   $('#portrait-tip').hidden = window.innerWidth > window.innerHeight;
@@ -99,10 +110,14 @@ function goMenu() {
 }
 
 // ---------- déroulement ----------
-function startLevel(levelId) {
+const scenariosFor = (mode, levelId) => (mode === 'defense' ? DEFENSE_SCENARIOS : SCENARIOS).filter((s) => s.level === levelId);
+const bestKey = (mode, levelId) => (mode === 'defense' ? `D-${levelId}` : levelId);
+
+function startLevel(levelId, mode = G.mode) {
   unlockAudio();
+  G.mode = mode;
   G.level = LEVELS.find((l) => l.id === levelId);
-  G.queue = SCENARIOS.filter((s) => s.level === levelId);
+  G.queue = scenariosFor(mode, levelId);
   G.index = 0;
   G.results = [];
   showIntro();
@@ -124,9 +139,15 @@ function showIntro() {
   const scn = G.queue[G.index];
   loadScenario(scn);
   G.phase = 'intro';
-  $('#intro-step').textContent = `${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
+  $('#intro-step').textContent = `${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · ${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
   $('#intro-title').textContent = scn.title;
-  $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, regarde où sont tes coéquipiers 👀</b>`;
+  if (scn.mode === 'defense') {
+    $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">↓ Glisse ton doigt vers le bas pour patiner à reculons.</span>`;
+    $('#intro-goal').textContent = '🛡️ Objectif : récupérer le palet sans encaisser de but.';
+  } else {
+    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, regarde où sont tes coéquipiers 👀</b>`;
+    $('#intro-goal').textContent = '🎯 Objectif : marquer un but avec ton équipe.';
+  }
   showScreen('#intro');
 }
 
@@ -134,17 +155,23 @@ function beginPlay() {
   unlockAudio();
   G.phase = 'play';
   resetInput();
-  $('#hud-level').textContent = G.level.name;
+  $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
   $('#hud-step').textContent = `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
-  setBanner('👀 Regarde autour de toi !', 'scan');
+  $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · ↓ vers le bas : reculer' : '☝️ Garde ton doigt appuyé pour patiner';
   showScreen(null);
   sfx.whistle();
-  speak('Regarde autour de toi avant de recevoir le palet !');
+  if (G.mode === 'defense') {
+    setBanner('🛡️ Défends ton but !', 'scan');
+    speak('Défends ton but ! Repère tous les attaquants.');
+  } else {
+    setBanner('👀 Regarde autour de toi !', 'scan');
+    speak('Regarde autour de toi avant de recevoir le palet !');
+  }
 }
 
 // ---------- contrôles ----------
-const input = { skate: false, turn: 0, head: 0 };
+const input = { skate: false, back: false, turn: 0, head: 0 };
 const pointers = new Map();
 let skateId = null;
 let lookBtn = 0;
@@ -159,7 +186,10 @@ function resetInput() {
 
 function updateInput() {
   const sp = skateId != null ? pointers.get(skateId) : null;
-  input.skate = !!sp || keys.has('ArrowUp') || keys.has('w') || keys.has('z');
+  // Doigt tiré vers le bas (par rapport à l'endroit où il s'est posé) : on recule.
+  const pulled = !!sp && sp.samples[sp.samples.length - 1].y - sp.y0 > canvas.clientHeight * 0.12;
+  input.back = pulled || keys.has('ArrowDown') || keys.has('s');
+  input.skate = !input.back && (!!sp || keys.has('ArrowUp') || keys.has('w') || keys.has('z'));
   let turn = 0;
   if (sp) {
     const last = sp.samples[sp.samples.length - 1];
@@ -210,6 +240,7 @@ function endPointer(e, isUp) {
       const q = pointers.get(skateId);
       const last = q.samples[q.samples.length - 1];
       q.x0 = last.x;
+      q.y0 = last.y;
     }
   }
 }
@@ -300,13 +331,17 @@ function trackSeen() {
   const st = G.sim.state;
   const view = st.me.yaw + st.me.head;
   const half = (world.getHfov() / 2) * 0.9;
-  for (const a of st.actors) {
-    if (!a.team || a.role === 'passer') continue;
+  for (const a of watched()) {
     if (Math.abs(wrap(angleTo(st.me, a) - view)) < half) G.seen.add(a.num);
   }
 }
+/** Joueurs à repérer : les coéquipiers en attaque, les attaquants adverses en défense. */
+function watched() {
+  const st = G.sim.state;
+  return st.actors.filter((a) => !a.goalie && (st.defense ? !a.team : a.team && a.role !== 'passer'));
+}
 function allSeen() {
-  return G.sim.state.actors.filter((a) => a.team && a.role !== 'passer').every((a) => G.seen.has(a.num));
+  return watched().every((a) => G.seen.has(a.num));
 }
 
 // ---------- événements de la simulation ----------
@@ -314,10 +349,12 @@ function handleEvents() {
   const st = G.sim.state;
   while (G.evIdx < st.events.length) {
     const ev = st.events[G.evIdx++];
-    if (ev.type === 'pass' && ev.from === st.passer.num && !st.received) {
+    if ((ev.type === 'oppPass' || ev.type === 'oppShot') && G.radar == null) G.radar = allSeen();
+    if (ev.type === 'oppPass' || ev.type === 'oppShot') sfx.puck();
+    else if (ev.type === 'pass' && st.passer && ev.from === st.passer.num && !st.received) {
       setBanner('🏒 Le palet arrive…', 'info');
       sfx.puck();
-    } else if (ev.type === 'receive') {
+    } else if (ev.type === 'receive' && !st.defense) {
       sfx.puck();
       if (st.releases.length === 0) {
         setBanner('👉 À toi ! Swipe pour passer ou tirer', 'decide');
@@ -338,6 +375,10 @@ const OUTCOMES = {
   mateStolen: '😬 Palet perdu !',
   lost: '😬 Palet perdu !',
   time: '⏱️ Temps écoulé !',
+  recovered: '💪 Palet récupéré !',
+  goalAgainst: '😬 But encaissé !',
+  saveUs: '🧤 Arrêt de ton gardien !',
+  wideAgainst: '😅 Tir à côté !',
 };
 
 function onOver(over) {
@@ -345,6 +386,9 @@ function onOver(over) {
   if (over.type === 'goal') {
     flash('BUT ! 🚨');
     sfx.horn();
+  } else if (over.type === 'recovered') {
+    flash('💪 Récupéré !');
+    sfx.good();
   } else {
     setBanner(OUTCOMES[over.type] || 'Fin', 'info');
     sfx.bad();
@@ -379,10 +423,84 @@ function outcomeText(st) {
   }
 }
 
+const DUTY_TEXT = {
+  goalside: 'Ta mission : rester entre le porteur et ton but.',
+  lane: (n) => `Ta mission : couper la passe vers le n°${n}.`,
+  mark: (n) => `Ta mission : marquer le n°${n}, entre lui et ton but.`,
+};
+
+function defenseOutcome(o) {
+  switch (o.type) {
+    case 'recovered':
+      if (o.how === 'poke') return ['💪 Tu as piqué le palet avec ta crosse !', ''];
+      if (o.how === 'intercept') return ['✋ Interception ! Tu as coupé la passe.', ''];
+      if (o.how === 'block') return ['🛡️ Tir bloqué ! Bravo pour le courage.', ''];
+      if (o.how === 'mate') return [`🤝 Ton coéquipier n°${o.num} a récupéré le palet.`, ''];
+      return ['💪 Palet récupéré !', ''];
+    case 'goalAgainst':
+      return ['😬 But encaissé.', 'Regarde le schéma : le rond vert montre où tu aurais dû être.'];
+    case 'saveUs':
+      return ['🧤 Ton gardien a arrêté le tir.', 'Pas de but, mais essaie de récupérer le palet avant le tir.'];
+    case 'wideAgainst':
+      return ['😅 L’attaquant a tiré à côté.', 'Essaie de récupérer le palet avant le tir.'];
+    case 'time':
+      return ['⏱️ Tu as tenu jusqu’au bout !', ''];
+    default:
+      return ['Fin de l’action.', ''];
+  }
+}
+
+function showDefenseResult() {
+  const st = G.sim.state;
+  const o = st.over;
+  const radar = !!G.radar;
+  const ratio = st.dutyT > 0 ? st.dutyOkT / st.dutyT : 0;
+  const ownAction = o.type === 'recovered' && ['poke', 'intercept', 'block'].includes(o.how);
+  const placement = ratio >= 0.55 || ownAction;
+  // Le gardien qui arrête le tir ne compte pas : c'est au joueur de récupérer le palet.
+  const zero = o.type === 'recovered' || o.type === 'time';
+  const stars = [radar, placement, zero].filter(Boolean).length;
+  G.results[G.index] = stars;
+
+  const titles = ['Oups !', 'Presque !', 'Bien joué !', 'Génial !'];
+  $('#res-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  $('#res-title').textContent = titles[stars];
+  $('#chip-radar').classList.toggle('on', radar);
+  $('#chip-decision').textContent = '📍 Placement';
+  $('#chip-decision').classList.toggle('on', placement);
+  $('#chip-goal').textContent = '💪 Récupéré';
+  $('#chip-goal').classList.toggle('on', zero);
+
+  const [outcome, tip] = defenseOutcome(o);
+  $('#res-outcome').textContent = outcome;
+  const [kind, num] = String(st.scn.duty).split(':');
+  const duty = typeof DUTY_TEXT[kind] === 'function' ? DUTY_TEXT[kind](num) : DUTY_TEXT[kind];
+  const pct = Math.round(ratio * 100);
+  $('#res-decision').textContent = `${placement ? '✅' : '❌'} ${duty} Tu étais bien placé ${pct} % du temps.`;
+  const best = $('#res-best');
+  best.hidden = !tip;
+  best.textContent = tip ? `💡 ${tip}` : '';
+  $('#res-backhand').hidden = true;
+  $('#res-radar').textContent = radar
+    ? '👀 Tête haute ! Tu avais repéré tous les attaquants.'
+    : '👀 Repère tous les attaquants dès le début : utilise les boutons 👀.';
+  $('#res-radar').className = radar ? 'ok' : 'warn';
+  $('#res-lesson').textContent = st.scn.lesson;
+  $('#legend-best').textContent = '◯ bonne place';
+  $('#btn-next').textContent = G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';
+  showScreen('#result');
+  drawReplay($('#res-diagram'), st, null);
+  speak(`${titles[stars]} ${outcome}`);
+}
+
 function showResult() {
   G.shown = true;
   G.phase = 'result';
   const st = G.sim.state;
+  if (st.defense) return showDefenseResult();
+  $('#chip-decision').textContent = '🧠 Décision';
+  $('#chip-goal').textContent = '🥅 But';
+  $('#legend-best').textContent = '━ meilleure option';
   const rel = st.releases[st.releases.length - 1] || null;
   const radar = !!G.radar;
   const decision = !!rel && rel.grade === 2;
@@ -446,7 +564,8 @@ function showSummary() {
   const max = G.queue.length * 3;
   const store = load(STORE_KEY, { best: {} });
   store.best = store.best || {};
-  store.best[G.level.id] = Math.max(store.best[G.level.id] || 0, total);
+  const key = bestKey(G.mode, G.level.id);
+  store.best[key] = Math.max(store.best[key] || 0, total);
   save(STORE_KEY, store);
   const r = total / max;
   $('#sum-stars').textContent = `⭐ ${total} / ${max}`;
@@ -454,7 +573,9 @@ function showSummary() {
   $('#sum-text').textContent =
     r >= 0.85
       ? 'Tu joues la tête haute et tu prends les bonnes décisions. Essaie la catégorie suivante !'
-      : 'Rejoue pour gagner plus d’étoiles : repère tes coéquipiers avant de recevoir le palet.';
+      : G.mode === 'defense'
+        ? 'Rejoue pour gagner plus d’étoiles : repère tous les attaquants et place-toi entre eux et ton but.'
+        : 'Rejoue pour gagner plus d’étoiles : repère tes coéquipiers avant de recevoir le palet.';
   showScreen('#summary');
   speak($('#sum-title').textContent);
 }
@@ -524,7 +645,7 @@ $('#btn-hand').addEventListener('click', () => showScreen('#hand'));
 $('#btn-go').addEventListener('click', beginPlay);
 $('#btn-next').addEventListener('click', next);
 $('#btn-retry').addEventListener('click', showIntro);
-$('#btn-again').addEventListener('click', () => startLevel(G.level.id));
+$('#btn-again').addEventListener('click', () => startLevel(G.level.id, G.mode));
 $('#btn-menu').addEventListener('click', goMenu);
 $('#btn-quit').addEventListener('click', goMenu);
 $('#intro-back').addEventListener('click', goMenu);
@@ -539,7 +660,7 @@ paintSound();
 window.addEventListener('resize', () => {
   world.resize();
   if (G.phase === 'menu') renderMenu();
-  if (G.phase === 'result') drawReplay($('#res-diagram'), G.sim.state, G.sim.state.releases.at(-1) || null);
+  if (G.phase === 'result') drawReplay($('#res-diagram'), G.sim.state, G.sim.state.defense ? null : G.sim.state.releases.at(-1) || null);
 });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

@@ -16,9 +16,11 @@ export function drawReplay(canvas, st, rel) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, Wc, Hc);
 
-  const zs = [...st.trailMe, ...st.trailPuck, st.passer].map((p) => p.z);
-  const zMax = 30;
-  const zMin = Math.max(-30, Math.min(-1, ...zs) - 2);
+  // On cadre sur la zone utile : celle du but attaqué (attaque) ou de notre but (défense).
+  const zs = [...st.trailMe, ...st.trailPuck, ...st.actors, st.me].map((p) => p.z);
+  if (st.passer) zs.push(st.passer.z);
+  const zMax = st.defense ? Math.min(30, Math.max(1, ...zs) + 2) : 30;
+  const zMin = st.defense ? -30 : Math.max(-30, Math.min(-1, ...zs) - 2);
   const pad = 8;
   const s = Math.min((Wc - pad * 2) / 26, (Hc - pad * 2) / (zMax - zMin));
   const ox = Wc / 2;
@@ -34,7 +36,7 @@ export function drawReplay(canvas, st, rel) {
   g.fill();
   g.stroke();
   const hline = (z, color, w) => {
-    if (z < zMin) return;
+    if (z < zMin || z > zMax) return;
     g.fillStyle = color;
     const [, y] = P({ x: 0, z });
     g.fillRect(ox - 13 * s, y - w / 2, 26 * s, w);
@@ -42,13 +44,19 @@ export function drawReplay(canvas, st, rel) {
   hline(0, '#d7263d', 3);
   hline(7.5, '#1f4fd6', 4);
   hline(26, '#d7263d', 1.5);
-  const [nx, ny] = P(NET);
-  g.fillStyle = '#bcdcff';
-  g.beginPath();
-  g.arc(nx, ny, 1.8 * s, 0, Math.PI);
-  g.fill();
-  g.fillStyle = '#d7263d';
-  g.fillRect(nx - 0.9 * s, ny - 1 * s, 1.8 * s, 1 * s);
+  hline(-7.5, '#1f4fd6', 4);
+  hline(-26, '#d7263d', 1.5);
+  for (const net of [NET, { x: 0, z: -26 }]) {
+    if (net.z < zMin || net.z > zMax) continue;
+    const up = net.z > 0;
+    const [nx, ny] = P(net);
+    g.fillStyle = '#bcdcff';
+    g.beginPath();
+    g.arc(nx, ny, 1.8 * s, up ? 0 : Math.PI, up ? Math.PI : 2 * Math.PI);
+    g.fill();
+    g.fillStyle = '#d7263d';
+    g.fillRect(nx - 0.9 * s, up ? ny - 1 * s : ny, 1.8 * s, 1 * s);
+  }
 
   // Trajets
   line(g, st.trailMe.map(P), YELLOW, 4, []);
@@ -60,6 +68,16 @@ export function drawReplay(canvas, st, rel) {
     const target = best.type === 'shoot' ? NET : best.target;
     if (best.key !== rel.chosen.key) arrow(g, P(rel.from), P(target), GREEN);
     ring(g, P(rel.from), 7, INK);
+  }
+
+  // Défense : où le joueur était au moment clé (passe, tir ou fin), et où il aurait dû être.
+  if (st.defense && st.keyMoment) {
+    if (st.keyMoment.ideal) {
+      g.setLineDash([5, 4]);
+      ring(g, P(st.keyMoment.ideal), Math.max(10, 1.3 * s), GREEN, 3);
+      g.setLineDash([]);
+    }
+    ring(g, P(st.keyMoment.me), 6, YELLOW, 3);
   }
 
   // Joueurs à la fin de l'action
@@ -76,7 +94,8 @@ export function drawReplay(canvas, st, rel) {
     g.font = `${Math.max(16, r * 2)}px system-ui, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText(st.over.type === 'goal' ? '⭐' : '❌', x, y);
+    const good = st.over.type === 'goal' || st.over.type === 'recovered';
+    g.fillText(good ? '⭐' : st.over.type === 'saveUs' ? '🧤' : '❌', x, y);
   }
 }
 
@@ -104,9 +123,9 @@ function line(g, pts, color, width, dash) {
   g.setLineDash([]);
 }
 
-function ring(g, [x, y], r, color) {
+function ring(g, [x, y], r, color, width = 2) {
   g.strokeStyle = color;
-  g.lineWidth = 2;
+  g.lineWidth = width;
   g.beginPath();
   g.arc(x, y, r, 0, Math.PI * 2);
   g.stroke();

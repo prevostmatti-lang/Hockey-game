@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCENARIOS, LEVELS } from '../src/scenarios.js';
 import { evaluate, gradeDecision } from '../src/evaluate.js';
 
-for (const scn of SCENARIOS) {
+for (const scn of SCENARIOS.filter((s) => s.mode !== 'defense')) {
   test(`${scn.id} – la meilleure option est ${scn.expect}`, () => {
     const { best, options } = evaluate(scn);
     assert.equal(best.key, scn.expect, JSON.stringify(options.map((o) => [o.key, o.score, o.reason])));

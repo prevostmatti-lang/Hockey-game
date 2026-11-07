@@ -17,6 +17,8 @@ Le revers est moins fort et moins précis.
 | ☝️ Doigt appuyé sur l'écran | patiner vers l'avant |
 | ↔️ Glisser le doigt à gauche ou à droite, sans le lever | tourner |
 | ⬆️ Swipe vers le haut (même en patinant) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
+| ⬇️ Tirer le doigt vers le bas | patiner à reculons, face au jeu |
+| Lever le doigt | freiner |
 | 👀 Boutons en bas à gauche et à droite | regarder par-dessus l'épaule |
 
 Une situation se joue ainsi :
@@ -35,6 +37,28 @@ Chaque situation rapporte jusqu'à 3 étoiles :
 | U9 | 6-8 ans | lent, laisse 1,5 s après la réception | forte | 30 s |
 | U11 | 9-10 ans | moyen | moyenne | 22 s |
 | U13 | 11-12 ans | rapide, presse tout de suite | faible | 18 s |
+
+## Mode Défense
+
+Il y a 9 situations défensives (3 par catégorie). C'est l'adversaire qui a le palet et qui attaque **ton** but.
+Chaque situation donne une **mission** :
+
+| Mission | Ce qu'il faut faire | Exemples |
+|---|---|---|
+| Rester entre le porteur et le but | Se placer devant l'attaquant, reculer avec lui, puis piquer le palet avec la crosse | 1 contre 1, repli |
+| Couper la passe | Se placer sur la ligne de passe, ou contre le receveur, et laisser le gardien prendre le tir | 2 contre 1, 3 contre 2 |
+| Marquer un joueur | Rester près de l'attaquant sans palet, entre lui et le but | l'enclave, le joueur oublié |
+
+Règles qui portent la leçon :
+- **Pas de palet par derrière** : impossible de le piquer dans le dos, il faut d'abord se replacer devant l'attaquant.
+- **Foncer sur le porteur se paie** : l'attaquant passe à son coéquipier laissé seul, qui marque.
+
+Les 3 étoiles en défense :
+- **👀 Radar** : tous les attaquants repérés avant leur première passe ou leur premier tir.
+- **📍 Placement** : la mission est tenue au moins 55 % du temps, ou le palet est récupéré par le joueur lui-même.
+- **💪 Récupéré** : l'équipe a récupéré le palet, ou a tenu jusqu'au bout sans encaisser de but. Un arrêt du gardien ne compte pas.
+
+Sur le ralenti, un **rond vert** montre où le joueur aurait dû être au moment clé.
 
 ## Lancer le jeu
 
@@ -58,7 +82,8 @@ npm test
 
 Les tests vérifient deux choses :
 - le moteur d'évaluation trouve bien la meilleure option prévue pour chaque situation ;
-- la simulation se comporte correctement : passe reçue, but en 2 contre 1, tir dans un coin, arrêt du gardien, palet volé, revers plus faible, patinage.
+- la simulation se comporte correctement en attaque : passe reçue, but en 2 contre 1, tir dans un coin, arrêt du gardien, palet volé, revers plus faible, patinage ;
+- la défense récompense le bon comportement : bien marquer évite le but, foncer sur le porteur laisse l'attaquant seul marquer, rester immobile ne récupère rien, on ne pique pas le palet par derrière.
 
 ## Ajouter une situation
 
@@ -75,7 +100,7 @@ src/main.js           déroulement du jeu, contrôles tactiles (patiner, tourner
 src/sim.js            simulation : patinage, palet, gardien, coéquipiers et adversaires
 src/world.js          rendu 3D (three.js) : patinoire, joueurs, caméra
 src/evaluate.js       note les options : lignes de passe, marquage, angle de tir, espace
-src/scenarios.js      les situations de jeu
+src/scenarios.js      les situations d'attaque et de défense
 src/diagram.js        ralenti vu du dessus
 src/audio.js          sons synthétisés et voix off française
 sw.js                 fonctionnement hors ligne

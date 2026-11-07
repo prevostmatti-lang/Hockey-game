@@ -43,13 +43,15 @@
       <div class="card menu-card">
         <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
         <p class="tagline">Regarde. Décide. Marque.</p>
+        <h2>Choisis ta catégorie</h2>
+        <div id="levels"></div>
+        <h2>Comment jouer</h2>
         <ul class="controls">
           <li><span class="ico">☝️</span><span><b>Garde le doigt appuyé</b> pour patiner. <b>Glisse-le à gauche ou à droite</b> pour tourner.</span></li>
           <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort.</span></li>
+          <li><span class="ico">⬇️</span><span><b>Tire le doigt vers le bas</b> pour patiner à reculons, face au jeu (utile en défense).</span></li>
           <li><span class="ico">👀</span><span>Les boutons <b>👀</b> te font regarder par-dessus ton épaule.</span></li>
         </ul>
-        <h2>Choisis ta catégorie</h2>
-        <div id="levels" class="levels"></div>
         <p class="hand-line">Palette <b id="hand-label"></b> · <button id="btn-hand" class="link">changer</button></p>
         <p id="portrait-tip" class="tip">📱 Astuce : tourne ton appareil à l’horizontale pour mieux voir.</p>
       </div>
@@ -61,7 +63,7 @@
         <p id="intro-step" class="step"></p>
         <h2 id="intro-title"></h2>
         <p id="intro-text"></p>
-        <p class="goal">🎯 Objectif : marquer un but avec ton équipe.</p>
+        <p id="intro-goal" class="goal"></p>
         <div class="row">
           <button id="intro-back" class="btn ghost">Menu</button>
           <button id="btn-go" class="btn big">C’est parti !</button>
@@ -107,7 +109,7 @@
         </div>
         <div class="result-diagram">
           <canvas id="res-diagram"></canvas>
-          <p class="legend"><span class="y">━ toi</span> <span class="k">┅ palet</span> <span class="g">━ meilleure option</span></p>
+          <p class="legend"><span class="y">━ toi</span> <span class="k">┅ palet</span> <span class="g" id="legend-best">━ meilleure option</span></p>
         </div>
         <div class="row actions">
           <button id="btn-retry" class="btn ghost">↺ Rejouer</button>
