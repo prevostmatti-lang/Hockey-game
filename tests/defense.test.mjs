@@ -19,9 +19,10 @@ const policies = {
     const c = p.owner && !p.owner.team ? p.owner : null;
     if (s.scn.duty === 'goalside' && c && Math.hypot(c.x - me.x, c.z - me.z) < 2.5 && dn(me) < dn(c)) return steer(me, p);
     if (!p.owner && Math.hypot(p.x - me.x, p.z - me.z) < 6) return steer(me, p);
-    if (!ideal) return { skate: false };
+    if (!ideal) return { brake: true };
     const d = Math.hypot(ideal.x - me.x, ideal.z - me.z);
-    if (d < 0.6 + Math.max(0, me.speed) ** 2 / 10) return { skate: false };
+    // Freine (double tap) juste assez tôt pour s'arrêter à la bonne place.
+    if (d < 0.6 + Math.max(0, me.speed) ** 2 / 20) return { brake: true };
     if (Math.abs(wrap(angleTo(me, ideal) - me.yaw)) > 2.2) {
       return { back: true, turn: Math.max(-1, Math.min(1, -wrap(angleTo(me, ideal) + Math.PI - me.yaw) * 2.5)) };
     }
@@ -86,6 +87,22 @@ test('bien marquer son joueur : bon placement et pas de but', () => {
     assert.ok(r.ratio >= 0.55, `${id} placement ${r.ratio}`);
     assert.notEqual(r.over.type, 'goalAgainst', id);
   }
+});
+
+test('lâcher l’écran : on glisse en ralentissant ; double tap : on freine net', () => {
+  const s = scn('d-u9-1');
+  const glide = createSim(s, level(s), 'R');
+  const brake = createSim(s, level(s), 'R');
+  for (const sim of [glide, brake]) for (let i = 0; i < 1.5 / DT; i++) sim.step(DT, { skate: true });
+  const v0 = glide.state.me.speed;
+  glide.step(DT, {});
+  brake.step(DT, { brake: true });
+  for (let i = 0; i < 1 / DT; i++) {
+    glide.step(DT, {});
+    brake.step(DT, {});
+  }
+  assert.ok(glide.state.me.speed > v0 - 2 && glide.state.me.speed > 3, 'on glisse encore');
+  assert.equal(brake.state.me.speed, 0, 'arrêté net');
 });
 
 test('patiner à reculons', () => {

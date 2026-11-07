@@ -142,10 +142,10 @@ function showIntro() {
   $('#intro-step').textContent = `${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · ${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
   $('#intro-title').textContent = scn.title;
   if (scn.mode === 'defense') {
-    $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">↓ Glisse ton doigt vers le bas pour patiner à reculons.</span>`;
+    $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">⬇ Tire ton pouce tout droit vers le bas pour patiner à reculons. Double tap pour freiner.</span>`;
     $('#intro-goal').textContent = '🛡️ Objectif : récupérer le palet sans encaisser de but.';
   } else {
-    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, regarde où sont tes coéquipiers 👀</b>`;
+    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, ramène ton pouce vers l’arrière pour regarder où sont tes coéquipiers 👀</b>`;
     $('#intro-goal').textContent = '🎯 Objectif : marquer un but avec ton équipe.';
   }
   showScreen('#intro');
@@ -158,7 +158,7 @@ function beginPlay() {
   $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
   $('#hud-step').textContent = `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
-  $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · ↓ vers le bas : reculer' : '☝️ Garde ton doigt appuyé pour patiner';
+  $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · pouce en arrière : regarder derrière · tout en bas : reculer' : '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner · pouce en arrière : regarder derrière';
   showScreen(null);
   sfx.whistle();
   if (G.mode === 'defense') {
@@ -171,42 +171,81 @@ function beginPlay() {
 }
 
 // ---------- contrôles ----------
-const input = { skate: false, back: false, turn: 0, head: 0 };
+// Le pouce fonctionne comme un joystick autour de l'endroit où il s'est posé :
+//   - vers le haut ou sur le côté (jusqu'à ~100°) : on patine et on tourne, d'autant plus que l'angle est grand ;
+//   - ramené vers l'arrière, à gauche ou à droite : on regarde derrière soi de ce côté (sans pousser) ;
+//   - tiré tout droit vers le bas : on patine à reculons ;
+//   - lever le doigt : on glisse en ralentissant ; double tap : on freine.
+const DEG = Math.PI / 180;
+const DEAD = 16; // px : petite zone morte autour du point de départ
+const input = { skate: false, back: false, brake: false, turn: 0, head: 0, headAngle: null };
 const pointers = new Map();
 let skateId = null;
-let lookBtn = 0;
+let brakePulse = false;
+let lastTap = 0;
 const keys = new Set();
 
 function resetInput() {
   pointers.clear();
   skateId = null;
-  lookBtn = 0;
+  brakePulse = false;
   keys.clear();
+  showStick(null);
+}
+
+/** Lit le joystick : renvoie la zone et l'angle du pouce (0 = vers le haut, + = à droite). */
+function readStick(sp) {
+  const last = sp.samples[sp.samples.length - 1];
+  const dx = last.x - sp.x0;
+  const dy = last.y - sp.y0;
+  const r = Math.hypot(dx, dy);
+  if (r < DEAD) return { zone: 'push', theta: 0, dx, dy };
+  const theta = Math.atan2(dx, -dy);
+  const a = Math.abs(theta);
+  if (a <= 100 * DEG) return { zone: 'push', theta, dx, dy };
+  if (a < 160 * DEG) return { zone: 'look', theta, dx, dy };
+  return { zone: 'back', theta, dx, dy };
 }
 
 function updateInput() {
   const sp = skateId != null ? pointers.get(skateId) : null;
-  // Doigt tiré vers le bas (par rapport à l'endroit où il s'est posé) : on recule.
-  const pulled = !!sp && sp.samples[sp.samples.length - 1].y - sp.y0 > canvas.clientHeight * 0.12;
-  input.back = pulled || keys.has('ArrowDown') || keys.has('s');
-  input.skate = !input.back && (!!sp || keys.has('ArrowUp') || keys.has('w') || keys.has('z'));
-  let turn = 0;
-  if (sp) {
-    const last = sp.samples[sp.samples.length - 1];
-    const dx = (last.x - sp.x0) / (canvas.clientWidth * 0.18);
-    turn = Math.abs(dx) < 0.08 ? 0 : clamp(dx, -1, 1);
-  }
+  const st = sp ? readStick(sp) : null;
+  input.skate = (st && st.zone === 'push') || keys.has('ArrowUp') || keys.has('w') || keys.has('z');
+  input.back = (st && st.zone === 'back') || keys.has('ArrowDown') || keys.has('s');
+  input.brake = brakePulse || keys.has('b');
+  brakePulse = false;
+  let turn = st && st.zone === 'push' ? clamp(st.theta / (90 * DEG), -1, 1) : 0;
   if (keys.has('ArrowLeft')) turn = -1;
   if (keys.has('ArrowRight')) turn = 1;
   input.turn = turn;
-  input.head = lookBtn || (keys.has('q') || keys.has('a') ? 1 : keys.has('e') ? -1 : 0);
+  // Regarder derrière : la vue suit l'angle du pouce (à droite = regard à droite).
+  input.headAngle = st && st.zone === 'look' ? -st.theta : null;
+  input.head = keys.has('q') || keys.has('a') ? 1 : keys.has('e') ? -1 : 0;
+  showStick(sp, st);
+}
+
+/** Petit repère visuel sous le pouce : anneau au point de départ, bouton qui suit le doigt. */
+function showStick(sp, st) {
+  const el = $('#stick');
+  if (!sp) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  el.style.left = `${sp.x0}px`;
+  el.style.top = `${sp.y0}px`;
+  const r = Math.hypot(st.dx, st.dy) || 1;
+  const k = Math.min(1, 46 / r);
+  $('#stick-knob').style.transform = `translate(${st.dx * k}px, ${st.dy * k}px)`;
+  el.dataset.zone = st.zone;
+  $('#stick-knob').textContent = st.zone === 'look' ? '👀' : st.zone === 'back' ? '⬇' : '';
 }
 
 canvas.addEventListener('pointerdown', (e) => {
   if (G.phase !== 'play') return;
   e.preventDefault();
   const now = performance.now();
-  pointers.set(e.pointerId, { x0: e.clientX, y0: e.clientY, samples: [{ t: now, x: e.clientX, y: e.clientY }] });
+  pointers.set(e.pointerId, { x0: e.clientX, y0: e.clientY, t0: now, maxR: 0, samples: [{ t: now, x: e.clientX, y: e.clientY }] });
   if (skateId == null) skateId = e.pointerId;
   try {
     canvas.setPointerCapture(e.pointerId);
@@ -221,6 +260,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (!p) return;
   const now = performance.now();
   p.samples.push({ t: now, x: e.clientX, y: e.clientY });
+  p.maxR = Math.max(p.maxR, Math.hypot(e.clientX - p.x0, e.clientY - p.y0));
   while (p.samples.length > 2 && now - p.samples[0].t > 400) p.samples.shift();
 });
 
@@ -229,8 +269,18 @@ function endPointer(e, isUp) {
   if (!p) return;
   pointers.delete(e.pointerId);
   if (isUp) {
-    p.samples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
-    tryFlick(p);
+    const now = performance.now();
+    p.samples.push({ t: now, x: e.clientX, y: e.clientY });
+    const flicked = tryFlick(p);
+    // Double tap (deux touches brèves au même endroit) : freinage.
+    const isTap = !flicked && now - p.t0 < 250 && p.maxR < 14;
+    if (isTap) {
+      if (now - lastTap < 380) {
+        brakePulse = true;
+        lastTap = 0;
+        setBanner('🛑 Freinage !', 'info');
+      } else lastTap = now;
+    }
   }
   if (e.pointerId === skateId) {
     // Si un autre doigt est posé, il prend le relais pour patiner.
@@ -294,28 +344,7 @@ function tryFlick(p) {
   return true;
 }
 
-for (const [id, dir] of [
-  ['#look-left', 1],
-  ['#look-right', -1],
-]) {
-  const b = $(id);
-  b.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    lookBtn = dir;
-    try {
-      b.setPointerCapture(e.pointerId);
-    } catch {
-      /* rien */
-    }
-  });
-  const stop = () => (lookBtn = 0);
-  b.addEventListener('pointerup', stop);
-  b.addEventListener('pointercancel', stop);
-  b.addEventListener('lostpointercapture', stop);
-  b.addEventListener('contextmenu', (e) => e.preventDefault());
-}
-
-// Clavier (pratique pour tester sur ordinateur) : flèches, Q/E pour l'épaule, espace pour tirer tout droit.
+// Clavier (pratique pour tester sur ordinateur) : flèches, Q/E pour regarder derrière, B pour freiner, espace pour tirer tout droit.
 window.addEventListener('keydown', (e) => {
   if (G.phase !== 'play') return;
   keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
@@ -483,7 +512,7 @@ function showDefenseResult() {
   $('#res-backhand').hidden = true;
   $('#res-radar').textContent = radar
     ? '👀 Tête haute ! Tu avais repéré tous les attaquants.'
-    : '👀 Repère tous les attaquants dès le début : utilise les boutons 👀.';
+    : '👀 Repère tous les attaquants dès le début : ramène ton pouce vers l’arrière pour regarder derrière toi.';
   $('#res-radar').className = radar ? 'ok' : 'warn';
   $('#res-lesson').textContent = st.scn.lesson;
   $('#legend-best').textContent = '◯ bonne place';
@@ -543,7 +572,7 @@ function showResult() {
   }
   $('#res-radar').textContent = radar
     ? '👀 Tête haute ! Tu avais repéré tous tes coéquipiers avant de jouer le palet.'
-    : '👀 Avant de jouer le palet, utilise les boutons 👀 pour repérer tous tes coéquipiers.';
+    : '👀 Avant de jouer le palet, ramène ton pouce vers l’arrière, à gauche ou à droite, pour repérer tous tes coéquipiers.';
   $('#res-radar').className = radar ? 'ok' : 'warn';
   $('#res-lesson').textContent = st.scn.lesson;
   $('#btn-next').textContent = G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';

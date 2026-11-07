@@ -22,6 +22,8 @@ const PUCK_FRICTION = 1.0;
 const ME_MAX = 6.5;
 const ME_MAX_PUCK = 5.6;
 const ME_BACK = 3.8; // patinage à reculons
+const GLIDE = 1.5; // ralentissement quand on glisse sans pousser (m/s²)
+const BRAKE = 10; // arrêt « chasse-neige » après un double tap (m/s²)
 const MATE_SPEED = 4.2;
 
 export const fwd = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
@@ -223,11 +225,19 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
   function stepMe(dt, input) {
     const holding = s.puck.owner === me;
     const max = holding ? ME_MAX_PUCK : ME_MAX;
+    if (input.brake) me.braking = true;
+    if (input.skate || input.back) me.braking = false;
     if (input.back) me.speed = Math.max(-ME_BACK, me.speed - 7 * dt);
     else if (input.skate) me.speed = Math.min(max, me.speed + 7 * dt);
-    else me.speed -= Math.sign(me.speed) * Math.min(Math.abs(me.speed), 5 * dt); // freinage
+    else {
+      // Sans pousser, on glisse en ralentissant peu à peu ; après un double tap, on freine fort.
+      const decel = me.braking ? BRAKE : GLIDE;
+      me.speed -= Math.sign(me.speed) * Math.min(Math.abs(me.speed), decel * dt);
+      if (me.speed === 0) me.braking = false;
+    }
     if (input.skate || input.back || Math.abs(me.speed) > 0.4) me.yaw = wrap(me.yaw - clamp(input.turn || 0, -1, 1) * 2.4 * dt);
-    const headTarget = clamp(input.head || 0, -1, 1) * 2.3;
+    // Regard : angle donné directement (pouce ramené vers l'arrière) ou bouton/clavier (-1, 0, 1).
+    const headTarget = input.headAngle != null ? clamp(input.headAngle, -2.9, 2.9) : clamp(input.head || 0, -1, 1) * 2.3;
     me.head += (headTarget - me.head) * Math.min(1, dt * 10);
     const f = fwd(me.yaw);
     me.vx = f.x * me.speed;

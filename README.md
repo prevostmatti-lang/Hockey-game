@@ -12,17 +12,20 @@ Au premier lancement, l'enfant choisit **droitier** (palette à droite) ou **gau
 Ce choix détermine de quel côté il porte le palet, et quelles passes sont en **coup droit** ou en **revers**.
 Le revers est moins fort et moins précis.
 
+Le pouce fonctionne comme un **joystick** autour de l'endroit où il s'est posé (un repère s'affiche dessous) :
+
 | Geste | Action |
 |---|---|
-| ☝️ Doigt appuyé sur l'écran | patiner vers l'avant |
-| ↔️ Glisser le doigt à gauche ou à droite, sans le lever | tourner |
+| ☝️ Doigt appuyé | patiner vers l'avant |
+| ↗️ Pouce déplacé sur le côté (jusqu'à 90°) | tourner ; plus l'angle est grand, plus on tourne |
+| ↙️ Pouce ramené vers l'arrière, à gauche ou à droite | regarder derrière soi de ce côté ; la vue suit l'angle du pouce, et on glisse sans pousser |
+| ⬇️ Pouce tiré tout droit vers le bas | patiner à reculons, face au jeu |
 | ⬆️ Swipe vers le haut (même en patinant) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
-| ⬇️ Tirer le doigt vers le bas | patiner à reculons, face au jeu |
-| Lever le doigt | freiner |
-| 👀 Boutons en bas à gauche et à droite | regarder par-dessus l'épaule |
+| Lâcher l'écran | on glisse en ralentissant peu à peu |
+| Double tap | freiner |
 
 Une situation se joue ainsi :
-1. Un coéquipier envoie le palet. Avant qu'il arrive, l'enfant regarde autour de lui pour repérer ses coéquipiers.
+1. Un coéquipier envoie le palet. Avant qu'il arrive, l'enfant ramène son pouce vers l'arrière pour regarder derrière lui et repérer ses coéquipiers.
 2. Il patine, passe ou tire. Les adversaires défendent : un défenseur vient au contact, d'autres marquent ou coupent les lignes de passe, et le gardien suit le palet.
 3. L'action s'arrête sur un but, un arrêt, une interception, une perte de palet ou la fin du temps.
 4. Un ralenti vu du dessus montre son trajet, celui du palet, et la meilleure option au moment où il a joué.
@@ -68,7 +71,7 @@ Aucune installation nécessaire, il suffit d'un petit serveur web local :
 npm start          # ou : python3 -m http.server 8080
 ```
 
-Puis ouvrir http://localhost:8080. Sur ordinateur : ↑ pour patiner, ← → pour tourner, Q/E pour regarder par-dessus l'épaule, espace pour tirer tout droit. On peut aussi swiper à la souris.
+Puis ouvrir http://localhost:8080. Sur ordinateur : ↑ pour patiner, ↓ pour reculer, ← → pour tourner, Q/E pour regarder derrière, B pour freiner, espace pour tirer tout droit. On peut aussi swiper à la souris.
 
 Pour tester sur téléphone ou tablette, le plus simple est d'activer **GitHub Pages** sur ce dépôt
 (Settings → Pages → branche, dossier racine). Le jeu peut ensuite être « ajouté à l'écran d'accueil »

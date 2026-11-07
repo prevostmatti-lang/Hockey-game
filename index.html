@@ -47,10 +47,11 @@
         <div id="levels"></div>
         <h2>Comment jouer</h2>
         <ul class="controls">
-          <li><span class="ico">☝️</span><span><b>Garde le doigt appuyé</b> pour patiner. <b>Glisse-le à gauche ou à droite</b> pour tourner.</span></li>
+          <li><span class="ico">☝️</span><span><b>Garde le doigt appuyé</b> pour patiner. <b>Déplace ton pouce sur le côté</b> pour tourner : plus l’angle est grand, plus tu tournes.</span></li>
+          <li><span class="ico">👀</span><span><b>Ramène ton pouce vers l’arrière</b>, à gauche ou à droite, pour regarder derrière toi de ce côté.</span></li>
           <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort.</span></li>
-          <li><span class="ico">⬇️</span><span><b>Tire le doigt vers le bas</b> pour patiner à reculons, face au jeu (utile en défense).</span></li>
-          <li><span class="ico">👀</span><span>Les boutons <b>👀</b> te font regarder par-dessus ton épaule.</span></li>
+          <li><span class="ico">🛑</span><span><b>Lâche l’écran</b> : tu glisses en ralentissant. <b>Tape deux fois</b> : tu freines.</span></li>
+          <li><span class="ico">⬇️</span><span><b>Tire ton pouce tout droit vers le bas</b> pour patiner à reculons (utile en défense).</span></li>
         </ul>
         <p class="hand-line">Palette <b id="hand-label"></b> · <button id="btn-hand" class="link">changer</button></p>
         <p id="portrait-tip" class="tip">📱 Astuce : tourne ton appareil à l’horizontale pour mieux voir.</p>
@@ -83,8 +84,7 @@
       <div id="timer"><div id="timer-fill"></div></div>
       <div id="banner" hidden></div>
       <div id="ctl-hint">☝️ Garde ton doigt appuyé pour patiner</div>
-      <button id="look-left" class="look-btn left" aria-label="Regarder à gauche">👀<span>◀</span></button>
-      <button id="look-right" class="look-btn right" aria-label="Regarder à droite"><span>▶</span>👀</button>
+      <div id="stick" hidden><div id="stick-knob"></div></div>
     </div>
 
     <div id="flash" aria-live="polite"></div>
