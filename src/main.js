@@ -1,8 +1,8 @@
 // « Tête haute ! » : le joueur patine en vue première personne, passe et tire d'un swipe.
 //   - doigt appuyé : patiner ; le glisser à gauche ou à droite : tourner
 //   - swipe vers le haut : passe ou tir, dans la direction du swipe, d'autant plus fort que le swipe est rapide
-//   - doigt glissé vers le bas : patiner à reculons (utile en défense)
-//   - boutons 👀 : regarder par-dessus l'épaule
+//   - pouce sur le côté : tourner selon l'angle ; ramené vers l'arrière : regarder derrière ; tout en bas : reculer
+//   - lâcher l'écran : glisser ; double tap : freiner
 import { LEVELS, SCENARIOS, DEFENSE_SCENARIOS } from './scenarios.js';
 import { explain, describeOption } from './evaluate.js';
 import { createSim, angleTo, wrap } from './sim.js';
