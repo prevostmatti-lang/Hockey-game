@@ -140,6 +140,64 @@ function numberSprite(num, color) {
   return s;
 }
 
+/**
+ * Palette de crosse de hockey : une lame fine posée sur la tranche, légèrement incurvée,
+ * avec du ruban blanc. Repère local : le talon est à l'origine, la lame part selon +x,
+ * le bas touche y = 0 et la face « coup droit » regarde vers +z.
+ */
+function makeBlade({ length = 0.3, height = 0.075, thick = 0.014, color = 0x1f2430, tape = 0xf4f4f4 } = {}) {
+  const g = new THREE.Group();
+  const mat = std(color, { roughness: 0.5 });
+  const tapeMat = std(tape, { roughness: 0.9 });
+  const n = 4;
+  const seg = length / n;
+  let x = 0;
+  let z = 0;
+  let ang = 0;
+  for (let i = 0; i < n; i++) {
+    // Légère courbure vers la face coup droit, plus marquée vers la pointe.
+    const a = ang + 0.06 * i;
+    const cx = x + (Math.cos(a) * seg) / 2;
+    const cz = z + (Math.sin(a) * seg) / 2;
+    const piece = new THREE.Mesh(new THREE.BoxGeometry(seg * 1.04, height, thick), mat);
+    piece.position.set(cx, height / 2, cz);
+    piece.rotation.y = -a;
+    g.add(piece);
+    if (i > 0 || n === 1) {
+      const t = new THREE.Mesh(new THREE.BoxGeometry(seg * 1.05, height * 0.82, thick * 1.5), tapeMat);
+      t.position.set(cx, height * 0.48, cz);
+      t.rotation.y = -a;
+      g.add(t);
+    }
+    x += Math.cos(a) * seg;
+    z += Math.sin(a) * seg;
+    ang = a;
+  }
+  // Pointe arrondie
+  const toe = new THREE.Mesh(new THREE.CylinderGeometry(height / 2, height / 2, thick * 1.5, 12, 1, false, 0, Math.PI), tapeMat);
+  toe.rotation.set(Math.PI / 2, 0, -ang);
+  toe.position.set(x, height / 2, z);
+  g.add(toe);
+  return g;
+}
+
+/** Oriente un objet dont l'axe local +x doit suivre la direction (ux, uz) sur la glace. */
+function alongX(obj, ux, uz) {
+  obj.rotation.y = Math.atan2(-uz, ux);
+}
+
+/** Manche rectangulaire (comme une vraie crosse) entre deux points. */
+function shaftBetween(a, b, mat, w = 0.03, d = 0.022) {
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const geo = new THREE.BoxGeometry(w, 1, d);
+  geo.translate(0, 0.5, 0);
+  const m = new THREE.Mesh(geo, mat);
+  m.scale.y = dir.length();
+  m.position.copy(a);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+
 function makePlayer({ team, num, goalie }) {
   const g = new THREE.Group();
   const jerseyColor = team ? COLORS.team : COLORS.opp;
@@ -172,10 +230,13 @@ function makePlayer({ team, num, goalie }) {
   helmet.position.y = 1.62;
   g.add(helmet);
   // Crosse
+  // Le joueur tient sa crosse à droite (côté -x de son repère) ; la palette part vers l'intérieur.
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
-  g.add(rod(new THREE.Vector3(-0.3, 1.0, 0.25), new THREE.Vector3(-0.32, 0.03, 0.72), 0.025, stickMat));
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.3), stickMat);
-  blade.position.set(-0.32, 0.04, 0.86);
+  const heel = new THREE.Vector3(-0.34, 0.05, 0.74);
+  g.add(shaftBetween(heel, new THREE.Vector3(-0.3, 1.0, 0.25), stickMat));
+  const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
+  blade.position.set(heel.x, 0, heel.z);
+  alongX(blade, 0.95, 0.3);
   g.add(blade);
 
   if (goalie) {
@@ -197,36 +258,45 @@ function makePlayer({ team, num, goalie }) {
 /** Crosse et palet « tenus » : attachés à la caméra, en bas de l'écran. */
 function buildMyStick() {
   const grp = new THREE.Group();
-  const mat = std(0x1f2430);
-  const geo = new THREE.CylinderGeometry(0.02, 0.02, 1, 10);
-  geo.translate(0, 0.5, 0);
-  const shaft = new THREE.Mesh(geo, mat);
-  grp.add(shaft);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.04), std(0x3a4150));
-  grp.add(blade);
+  const shaft = new THREE.Group();
+  const blade = new THREE.Group();
   const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 20), std(0x111111, { roughness: 0.4 }));
-  grp.add(puck);
+  grp.add(shaft, blade, puck);
   grp.userData = { shaft, blade, puck };
   return grp;
 }
 
-/** Place la crosse dans le champ de vision, quelle que soit l'orientation de l'écran. */
+/** Place la crosse dans le champ de vision, quelle que soit l'orientation de l'écran et la main. */
 function layoutMyStick(stick, vfov, aspect, side = 1) {
   const d = 1.1;
   const halfH = Math.tan(vfov / 2) * d;
   const halfW = halfH * aspect;
-  const yb = -halfH * 0.78;
+  const yb = -halfH * 0.8; // hauteur de la glace sous la palette, dans le repère de la caméra
   const { shaft, blade, puck } = stick.userData;
-  const a = new THREE.Vector3(side * Math.min(halfW * 0.9, 0.9), -halfH * 0.05 - 0.15, -0.45);
-  const b = new THREE.Vector3(side * 0.12, yb, -d);
-  const dir = new THREE.Vector3().subVectors(a, b);
-  shaft.scale.set(1, dir.length(), 1);
-  shaft.position.copy(b);
-  shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-  blade.position.set(side * 0.04, yb, -d);
-  blade.rotation.set(-0.35, 0, 0);
-  puck.position.set(side * 0.02, yb + 0.005, -d - 0.12);
-  puck.rotation.set(-0.35, 0, 0);
+
+  // Talon de la palette, un peu du côté de la main ; la lame part vers le centre et légèrement vers l'avant.
+  // L'ensemble palette + palet est un peu basculé vers la caméra : on les voit « de dessus »,
+  // comme quand on baisse les yeux sur son palet (sinon la lame cache le palet).
+  const heel = new THREE.Vector3(side * 0.2, yb, -d);
+  const ux = -side * 0.97;
+  const uz = -0.24;
+  blade.clear();
+  blade.position.copy(heel);
+  blade.rotation.set(0.5, 0, 0);
+  const b = makeBlade({ length: 0.32, height: 0.075, thick: 0.016 });
+  alongX(b, ux, uz);
+  if (side < 0) b.scale.z = -1; // miroir pour les gauchers : la face coup droit reste vers l'avant
+  blade.add(b);
+  // Palet collé à la face coup droit, au milieu de la palette.
+  blade.add(puck);
+  puck.position.set(ux * 0.17, 0.018, uz * 0.17 - 0.1);
+
+  // Manche : du talon jusqu'aux mains, hors de l'écran sur le côté.
+  shaft.clear();
+  const mat = std(0x1f2430, { roughness: 0.5 });
+  const hands = new THREE.Vector3(side * Math.min(halfW * 0.95, 1.0), yb + 0.75, -0.35);
+  shaft.add(shaftBetween(new THREE.Vector3(heel.x, yb + 0.05, heel.z), hands, mat, 0.032, 0.024));
+
 }
 
 export function createWorld(canvas) {

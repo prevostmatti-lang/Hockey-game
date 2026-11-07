@@ -411,7 +411,10 @@ p {
   background: rgba(240, 122, 0, 0.95);
 }
 #ctl-hint {
-  bottom: max(24px, env(safe-area-inset-bottom));
+  bottom: auto;
+  top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+  font-size: 14px;
+  padding: 8px 14px;
   white-space: normal;
   text-align: center;
   max-width: calc(100% - 32px);
@@ -599,4 +602,9 @@ p {
   .row {
     margin-top: 8px;
   }
+}
+
+/* Quand l'aide des contrôles est affichée en haut, le bandeau passe en dessous. */
+#hud:has(#ctl-hint:not([hidden])) #banner {
+  margin-top: 58px;
 }
