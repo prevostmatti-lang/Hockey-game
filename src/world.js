@@ -155,9 +155,9 @@ function makeBlade({ length = 0.3, height = 0.075, thick = 0.014, color = 0x1f24
   let z = 0;
   let ang = 0;
   for (let i = 0; i < n; i++) {
-    // Courbure réglementaire : environ 1,5 cm de creux sur la longueur de la palette
-    // (les règlements IIHF / NHL limitent la courbure à 1,5-1,9 cm).
-    const a = ang + 0.035 * i;
+    // Courbure réglementaire : 1,5 cm de creux au maximum, mesuré du talon à la pointe
+    // (règlement IIHF, section 2 « Sticks » : palette 32 cm max, hauteur 5 à 7,5 cm, manche 3 cm max).
+    const a = ang + 0.033 * i;
     const cx = x + (Math.cos(a) * seg) / 2;
     const cz = z + (Math.sin(a) * seg) / 2;
     const piece = new THREE.Mesh(new THREE.BoxGeometry(seg * 1.04, height, thick), mat);
