@@ -1,10 +1,12 @@
-// Schéma vu du dessus, affiché après chaque décision pour expliquer « pourquoi ».
-import { finalPos, NET } from './evaluate.js';
+// Ralenti vu du dessus, affiché à la fin de chaque situation :
+// le trajet du joueur, celui du palet, et la meilleure option au moment de la passe ou du tir.
+import { NET } from './evaluate.js';
 
 const GREEN = '#1fa35c';
-const ORANGE = '#f07a00';
+const YELLOW = '#f5b301';
+const INK = '#13233a';
 
-export function drawDiagram(canvas, scn, ev, chosen) {
+export function drawReplay(canvas, st, rel) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const Wc = canvas.clientWidth || 300;
   const Hc = canvas.clientHeight || 300;
@@ -14,16 +16,17 @@ export function drawDiagram(canvas, scn, ev, chosen) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, Wc, Hc);
 
+  const zs = [...st.trailMe, ...st.trailPuck, st.passer].map((p) => p.z);
   const zMax = 30;
-  const zMin = Math.min(-1, scn.me.z - 4, scn.passer.z - 2);
+  const zMin = Math.max(-30, Math.min(-1, ...zs) - 2);
   const pad = 8;
   const s = Math.min((Wc - pad * 2) / 26, (Hc - pad * 2) / (zMax - zMin));
   const ox = Wc / 2;
   const oy = (Hc - (zMax - zMin) * s) / 2;
-  // L'enfant regarde vers le haut du schéma : sa droite est le côté x négatif.
+  // Le joueur attaque vers le haut du schéma : sa droite est le côté x négatif.
   const P = (p) => [ox - p.x * s, oy + (zMax - p.z) * s];
 
-  // Glace
+  // Glace et lignes
   g.fillStyle = '#f4f9fd';
   g.strokeStyle = '#9fb3c8';
   g.lineWidth = 2;
@@ -39,7 +42,6 @@ export function drawDiagram(canvas, scn, ev, chosen) {
   hline(0, '#d7263d', 3);
   hline(7.5, '#1f4fd6', 4);
   hline(26, '#d7263d', 1.5);
-  // Enclave + but
   const [nx, ny] = P(NET);
   g.fillStyle = '#bcdcff';
   g.beginPath();
@@ -48,22 +50,34 @@ export function drawDiagram(canvas, scn, ev, chosen) {
   g.fillStyle = '#d7263d';
   g.fillRect(nx - 0.9 * s, ny - 1 * s, 1.8 * s, 1 * s);
 
-  // Flèches : meilleure option (verte) et choix de l'enfant (orange) s'il est différent
-  const me = scn.me;
-  const arrowTo = (o) => (o.type === 'shoot' ? NET : o.target);
-  if (chosen && chosen.type !== 'timeout' && chosen.key !== ev.best.key) {
-    const end = chosen.blocker && chosen.type === 'pass' ? chosen.blocker : arrowTo(chosen);
-    arrow(g, P(me), P(end), ORANGE, true);
-    if (chosen.blocker) cross(g, P(chosen.blocker), ORANGE);
-  }
-  arrow(g, P(me), P(arrowTo(ev.best)), GREEN, false);
+  // Trajets
+  line(g, st.trailMe.map(P), YELLOW, 4, []);
+  line(g, st.trailPuck.map(P), INK, 2, [4, 5]);
 
-  // Joueurs
+  // Meilleure option au moment où le joueur a lâché le palet
+  if (rel) {
+    const best = rel.ev.best;
+    const target = best.type === 'shoot' ? NET : best.target;
+    if (best.key !== rel.chosen.key) arrow(g, P(rel.from), P(target), GREEN);
+    ring(g, P(rel.from), 7, INK);
+  }
+
+  // Joueurs à la fin de l'action
   const r = Math.max(7, 0.75 * s);
-  dot(g, P(scn.passer), r, '#1e66f5', String(scn.passer.num));
-  for (const t of scn.teammates) dot(g, P(finalPos(t)), r, '#1e66f5', String(t.num));
-  for (const o of scn.opponents) dot(g, P(finalPos(o)), r, '#e5484d', o.goalie ? 'G' : '');
-  dot(g, P(me), r * 1.15, '#ffd23f', 'TOI', '#0b2545');
+  for (const a of st.actors) {
+    if (a.team) dot(g, P(a), r, '#1e66f5', String(a.num));
+    else dot(g, P(a), r, '#e5484d', a.goalie ? 'G' : '');
+  }
+  dot(g, P(st.me), r * 1.15, '#ffd23f', 'TOI', '#0b2545');
+
+  // Fin de l'action
+  if (st.over) {
+    const [x, y] = P(st.over);
+    g.font = `${Math.max(16, r * 2)}px system-ui, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(st.over.type === 'goal' ? '⭐' : '❌', x, y);
+  }
 }
 
 function roundRect(g, x, y, w, h, r) {
@@ -74,6 +88,28 @@ function roundRect(g, x, y, w, h, r) {
   g.arcTo(x, y + h, x, y, r);
   g.arcTo(x, y, x + w, y, r);
   g.closePath();
+}
+
+function line(g, pts, color, width, dash) {
+  if (pts.length < 2) return;
+  g.strokeStyle = color;
+  g.lineWidth = width;
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  g.setLineDash(dash);
+  g.beginPath();
+  g.moveTo(...pts[0]);
+  for (const p of pts.slice(1)) g.lineTo(...p);
+  g.stroke();
+  g.setLineDash([]);
+}
+
+function ring(g, [x, y], r, color) {
+  g.strokeStyle = color;
+  g.lineWidth = 2;
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.stroke();
 }
 
 function dot(g, [x, y], r, color, label, textColor = '#fff') {
@@ -93,7 +129,7 @@ function dot(g, [x, y], r, color, label, textColor = '#fff') {
   }
 }
 
-function arrow(g, [x1, y1], [x2, y2], color, dashed) {
+function arrow(g, [x1, y1], [x2, y2], color) {
   const a = Math.atan2(y2 - y1, x2 - x1);
   const len = Math.hypot(x2 - x1, y2 - y1) - 10;
   const ex = x1 + Math.cos(a) * len;
@@ -101,27 +137,14 @@ function arrow(g, [x1, y1], [x2, y2], color, dashed) {
   g.strokeStyle = color;
   g.fillStyle = color;
   g.lineWidth = 4;
-  g.setLineDash(dashed ? [8, 6] : []);
   g.beginPath();
   g.moveTo(x1, y1);
   g.lineTo(ex, ey);
   g.stroke();
-  g.setLineDash([]);
   g.beginPath();
   g.moveTo(ex + Math.cos(a) * 8, ey + Math.sin(a) * 8);
   g.lineTo(ex + Math.cos(a + 2.5) * 12, ey + Math.sin(a + 2.5) * 12);
   g.lineTo(ex + Math.cos(a - 2.5) * 12, ey + Math.sin(a - 2.5) * 12);
   g.closePath();
   g.fill();
-}
-
-function cross(g, [x, y], color) {
-  g.strokeStyle = color;
-  g.lineWidth = 4;
-  g.beginPath();
-  g.moveTo(x - 12, y - 12);
-  g.lineTo(x + 12, y + 12);
-  g.moveTo(x + 12, y - 12);
-  g.lineTo(x - 12, y + 12);
-  g.stroke();
 }

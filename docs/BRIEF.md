@@ -4,7 +4,8 @@
 - **Public** : les joueurs de 6 à 12 ans **d'un club** (U9, U11, U13).
 - **Supports** : **téléphone et tablette** en priorité. C'est une appli web installable, utilisable hors ligne.
 - **Pas d'espace coach** : l'enfant joue seul et sa progression reste sur l'appareil.
-- **Vue première personne** : l'enfant voit la glace « avec les yeux du joueur ». Tourner la tête est donc un vrai geste à apprendre.
+- **Vue première personne et contrôle direct** : l'enfant patine lui-même. Doigt appuyé pour avancer, glisser pour tourner, swipe vers le haut pour passer ou tirer (direction et force), même en patinant.
+- **Droitier ou gaucher** choisi au départ : le palet est porté du côté de la palette, et les passes en revers sont moins fortes et moins précises.
 
 ## Objectifs pédagogiques
 | Compétence | Dans le jeu |
@@ -15,27 +16,30 @@
 | Comprendre | Après chaque action, un schéma vu du dessus montre la meilleure option et explique pourquoi |
 | Conduite de palet | Pas dans cette version. Plus tard : défis hors écran avec balle et crosse (voir ci-dessous) |
 
-## Boucle de jeu (une situation dure environ 20 secondes)
-1. **Regarde** : le passeur a le palet. L'enfant glisse le doigt pour tourner la tête. Les joueurs se déplacent.
-2. **Reçois** : le palet arrive et la vue se tourne vers le but adverse.
-3. **Décide** : toucher un coéquipier pour passer, toucher le but pour tirer, ou le bouton **Patiner**.
-4. **Comprends** : étoiles, explication en une phrase, conseil, schéma vu du dessus.
+## Boucle de jeu (une situation dure de 10 à 30 secondes)
+1. **Regarde** : un coéquipier va passer le palet. Avant qu'il arrive, l'enfant repère ses coéquipiers avec les boutons 👀, qui le font regarder par-dessus l'épaule.
+2. **Joue** : il patine, passe ou tire en temps réel. Un défenseur vient au contact, d'autres marquent ou coupent les lignes de passe, et le gardien suit le palet. Les coéquipiers reçoivent, tirent ou redonnent le palet (une-deux).
+3. **Fin de l'action** : but, arrêt, tir à côté, interception, palet perdu ou temps écoulé.
+4. **Comprends** : étoiles, explication en une phrase, conseil, et un ralenti vu du dessus (trajet du joueur, trajet du palet, meilleure option au moment du choix).
 
 Une série compte 3 situations, comme une « présence » sur la glace.
 
-## Notation
-- **2 étoiles « décision »** pour la meilleure option, 1 étoile pour une option correcte, 0 sinon.
-- **1 étoile « radar »** si la meilleure option a été vue *avant* la réception du palet.
-- Le moteur d'évaluation est simple, explicable et testé :
+## Notation (3 étoiles)
+- **👀 Radar** : tous les coéquipiers ont été vus avant de jouer le palet.
+- **🧠 Décision** : au moment de la passe ou du tir, c'était la meilleure option. Le moteur d'évaluation est simple, explicable et testé :
   - Une **ligne de passe est coupée** si un adversaire se trouve à moins de 1,3 m de la trajectoire.
   - Un coéquipier est **marqué** si un adversaire est à moins de 2,5 m de lui.
   - Un **tir** est bon s'il part de près, sans angle trop fermé et sans adversaire devant.
-  - **Patiner** est bon s'il y a de l'espace devant soi, en direction du but.
+  - **Garder le palet** est bon s'il y a de l'espace devant soi.
+- **🥅 But** : l'équipe a marqué.
 
 ## Adaptation à l'âge
 | | U9 (6-8 ans) | U11 (9-10 ans) | U13 (11-12 ans) |
 |---|---|---|---|
-| Temps pour regarder et décider | 5 s / 7 s | 4 s / 5 s | 3 s / 3,5 s |
+| Défenseur | lent, laisse 1,5 s après la réception | moyen | rapide, presse tout de suite |
+| Gardien | réagit lentement | moyen | vif |
+| Aide à la visée | forte | moyenne | faible |
+| Durée | 30 s | 22 s | 18 s |
 | Situations | 1 coéquipier, choix évident | 2 contre 1, soutien | 3 contre 2, jeu en zone, remise à la pointe |
 
 Voix off française, peu de texte, gros boutons, sons simples.

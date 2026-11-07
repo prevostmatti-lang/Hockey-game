@@ -1,80 +1,72 @@
-// Boucle de jeu « Tête haute ! » : regarder → recevoir → décider → comprendre.
+// « Tête haute ! » : le joueur patine en vue première personne, passe et tire d'un swipe.
+//   - doigt appuyé : patiner ; le glisser à gauche ou à droite : tourner
+//   - swipe vers le haut : passe ou tir, dans la direction du swipe, d'autant plus fort que le swipe est rapide
+//   - boutons 👀 : regarder par-dessus l'épaule
 import { LEVELS, SCENARIOS } from './scenarios.js';
-import { evaluate, gradeDecision, explain, describeOption, finalPos, NET } from './evaluate.js';
-import { createWorld, EYE } from './world.js';
-import { drawDiagram } from './diagram.js';
+import { explain, describeOption } from './evaluate.js';
+import { createSim, angleTo, wrap } from './sim.js';
+import { createWorld } from './world.js';
+import { drawReplay } from './diagram.js';
 import { sfx, speak, unlockAudio, toggleMute, isMuted } from './audio.js';
 
 const $ = (s) => document.querySelector(s);
-const world = createWorld($('#scene'));
+const canvas = $('#scene');
+const world = createWorld(canvas);
 
-const RECEIVE_TIME = 0.7;
-const RESOLVE_TIME = 1.2;
 const STORE_KEY = 'tetehaute.v1';
+const HAND_KEY = 'tetehaute.hand';
+const END_DELAY = 1.5;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-const S = {
+const G = {
   phase: 'menu',
+  hand: null,
   level: null,
   queue: [],
   index: 0,
-  scn: null,
-  ev: null,
-  actors: [],
-  me: { x: 0, z: 0 },
-  yaw: 0,
-  t: 0,
-  clock: 0,
-  saw: false,
+  sim: null,
+  meshes: [],
+  evIdx: 0,
+  seen: new Set(),
+  radar: null,
   results: [],
-  anim: null,
+  menuYaw: 0,
   shown: false,
 };
 
-// ---------- utilitaires ----------
-const lerp = (a, b, k) => a + (b - a) * k;
-const lerpP = (a, b, k) => ({ x: lerp(a.x, b.x, k), z: lerp(a.z, b.z, k) });
-const smooth = (k) => k * k * (3 - 2 * k);
-const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const angleTo = (from, to) => Math.atan2(to.x - from.x, to.z - from.z);
-const forward = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
-
-function stickPos() {
-  const f = forward(S.yaw);
-  // La droite de l'écran correspond à (-cos, sin) dans notre repère.
-  return { x: S.me.x + f.x * 0.95 - Math.cos(S.yaw) * 0.1, z: S.me.z + f.z * 0.95 + Math.sin(S.yaw) * 0.1 };
-}
-
-function setPuck(p, y = 0.02) {
-  world.puck.position.set(p.x, y, p.z);
-}
-
-function loadProgress() {
+// ---------- sauvegarde locale ----------
+function load(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(STORE_KEY)) || { best: {} };
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : JSON.parse(v);
   } catch {
-    return { best: {} };
+    return fallback;
   }
 }
-
-function saveBest(levelId, stars) {
-  const p = loadProgress();
-  p.best[levelId] = Math.max(p.best[levelId] || 0, stars);
+function save(key, value) {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(p));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* rien */
+    /* stockage indisponible */
   }
 }
 
 // ---------- écrans ----------
-const SCREENS = ['#menu', '#intro', '#result', '#summary'];
+const SCREENS = ['#hand', '#menu', '#intro', '#result', '#summary'];
 function showScreen(id) {
   for (const s of SCREENS) $(s).hidden = s !== id;
   $('#hud').hidden = id !== null;
 }
 
+function setHand(hand) {
+  G.hand = hand;
+  save(HAND_KEY, hand);
+  world.setHand(hand);
+  goMenu();
+}
+
 function renderMenu() {
-  const best = loadProgress().best;
+  const best = load(STORE_KEY, { best: {} }).best || {};
   const list = $('#levels');
   list.innerHTML = '';
   for (const l of LEVELS) {
@@ -86,17 +78,22 @@ function renderMenu() {
     b.addEventListener('click', () => startLevel(l.id));
     list.appendChild(b);
   }
+  $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
   $('#portrait-tip').hidden = window.innerWidth > window.innerHeight;
 }
 
 function goMenu() {
-  S.phase = 'menu';
+  G.phase = 'menu';
+  G.sim = null;
   world.clearActors();
   world.setStickVisible(false);
   world.setHolding(false);
-  setPuck({ x: 0, z: 0 });
-  S.me = { x: 0, z: -12 };
+  world.puck.position.set(0, 0.02, 0);
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (!G.hand) {
+    showScreen('#hand');
+    return;
+  }
   renderMenu();
   showScreen('#menu');
 }
@@ -104,211 +101,360 @@ function goMenu() {
 // ---------- déroulement ----------
 function startLevel(levelId) {
   unlockAudio();
-  S.level = LEVELS.find((l) => l.id === levelId);
-  S.queue = SCENARIOS.filter((s) => s.level === levelId);
-  S.index = 0;
-  S.results = [];
+  G.level = LEVELS.find((l) => l.id === levelId);
+  G.queue = SCENARIOS.filter((s) => s.level === levelId);
+  G.index = 0;
+  G.results = [];
   showIntro();
 }
 
 function loadScenario(scn) {
-  S.scn = scn;
-  S.ev = evaluate(scn);
-  S.me = { ...scn.me };
+  G.sim = createSim(scn, G.level, G.hand);
+  G.evIdx = 0;
+  G.seen = new Set();
+  G.radar = null;
+  G.shown = false;
   world.clearActors();
   world.setStickVisible(true);
-  S.actors = [];
-  const add = (spec, data) => {
-    const a = world.addActor(spec);
-    const actor = { ...a, data, team: !!spec.team, start: { x: data.x, z: data.z }, end: finalPos(data), pos: { x: data.x, z: data.z } };
-    actor.setPos(data.x, data.z);
-    S.actors.push(actor);
-    return actor;
-  };
-  S.passer = add({ team: true, num: scn.passer.num }, scn.passer);
-  S.passer.face(scn.me.x, scn.me.z);
-  for (const t of scn.teammates) add({ team: true, num: t.num, pickable: true }, t);
-  for (const o of scn.opponents) {
-    const a = add({ team: false, goalie: o.goalie }, o);
-    if (o.goalie) a.face(0, 0);
-    else a.face(scn.me.x, scn.me.z);
-  }
-  S.yaw = angleTo(S.me, scn.passer);
-  const f = forward(angleTo(scn.passer, S.me));
-  world.setHolding(false);
-  S.passerStick = { x: scn.passer.x + f.x * 1.0, z: scn.passer.z + f.z * 1.0 };
-  setPuck(S.passerStick);
+  G.meshes = G.sim.state.actors.map((a) => world.addActor({ team: a.team, num: a.num, goalie: a.goalie }));
+  syncRender();
 }
 
 function showIntro() {
-  const scn = S.queue[S.index];
+  const scn = G.queue[G.index];
   loadScenario(scn);
-  S.phase = 'intro';
-  $('#intro-step').textContent = `${S.level.name} · Situation ${S.index + 1} / ${S.queue.length}`;
+  G.phase = 'intro';
+  $('#intro-step').textContent = `${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
   $('#intro-title').textContent = scn.title;
+  $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, regarde où sont tes coéquipiers 👀</b>`;
   showScreen('#intro');
 }
 
-function beginScan() {
+function beginPlay() {
   unlockAudio();
-  S.phase = 'scan';
-  S.t = 0;
-  S.clock = 0;
-  S.saw = false;
-  $('#hud-level').textContent = S.level.name;
-  $('#hud-step').textContent = `${S.index + 1} / ${S.queue.length}`;
-  $('#btn-skate').hidden = true;
-  $('#look-hint').hidden = false;
-  setBanner('👀 Regarde partout !', 'scan');
+  G.phase = 'play';
+  resetInput();
+  $('#hud-level').textContent = G.level.name;
+  $('#hud-step').textContent = `${G.index + 1} / ${G.queue.length}`;
+  $('#ctl-hint').hidden = G.index > 0;
+  setBanner('👀 Regarde autour de toi !', 'scan');
   showScreen(null);
   sfx.whistle();
-  speak('Regarde partout avant de recevoir le palet !');
+  speak('Regarde autour de toi avant de recevoir le palet !');
 }
 
-function startReceive() {
-  S.phase = 'receive';
-  S.t = 0;
-  S.yawFrom = S.yaw;
-  S.faceYaw = angleTo(S.me, NET);
-  $('#look-hint').hidden = true;
-  setBanner('🏒 Le palet arrive…', 'receive');
+// ---------- contrôles ----------
+const input = { skate: false, turn: 0, head: 0 };
+const pointers = new Map();
+let skateId = null;
+let lookBtn = 0;
+const keys = new Set();
+
+function resetInput() {
+  pointers.clear();
+  skateId = null;
+  lookBtn = 0;
+  keys.clear();
+}
+
+function updateInput() {
+  const sp = skateId != null ? pointers.get(skateId) : null;
+  input.skate = !!sp || keys.has('ArrowUp') || keys.has('w') || keys.has('z');
+  let turn = 0;
+  if (sp) {
+    const last = sp.samples[sp.samples.length - 1];
+    const dx = (last.x - sp.x0) / (canvas.clientWidth * 0.18);
+    turn = Math.abs(dx) < 0.08 ? 0 : clamp(dx, -1, 1);
+  }
+  if (keys.has('ArrowLeft')) turn = -1;
+  if (keys.has('ArrowRight')) turn = 1;
+  input.turn = turn;
+  input.head = lookBtn || (keys.has('q') || keys.has('a') ? 1 : keys.has('e') ? -1 : 0);
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (G.phase !== 'play') return;
+  e.preventDefault();
+  const now = performance.now();
+  pointers.set(e.pointerId, { x0: e.clientX, y0: e.clientY, samples: [{ t: now, x: e.clientX, y: e.clientY }] });
+  if (skateId == null) skateId = e.pointerId;
+  try {
+    canvas.setPointerCapture(e.pointerId);
+  } catch {
+    /* pointeur synthétique */
+  }
+  $('#ctl-hint').hidden = true;
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const now = performance.now();
+  p.samples.push({ t: now, x: e.clientX, y: e.clientY });
+  while (p.samples.length > 2 && now - p.samples[0].t > 400) p.samples.shift();
+});
+
+function endPointer(e, isUp) {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  pointers.delete(e.pointerId);
+  if (isUp) {
+    p.samples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
+    tryFlick(p);
+  }
+  if (e.pointerId === skateId) {
+    // Si un autre doigt est posé, il prend le relais pour patiner.
+    const next = pointers.keys().next();
+    skateId = next.done ? null : next.value;
+    if (!next.done) {
+      const q = pointers.get(skateId);
+      const last = q.samples[q.samples.length - 1];
+      q.x0 = last.x;
+    }
+  }
+}
+canvas.addEventListener('pointerup', (e) => endPointer(e, true));
+canvas.addEventListener('pointercancel', (e) => endPointer(e, false));
+
+/** Un swipe rapide vers le haut lâche le palet : la direction donne la visée, la vitesse donne la force. */
+function tryFlick(p) {
+  if (G.phase !== 'play' || !G.sim) return false;
+  const st = G.sim.state;
+  if (st.puck.owner !== st.me) return false;
+  const S = p.samples;
+  // On ignore une petite pause du doigt juste avant de le lever.
+  let endIdx = S.length - 1;
+  while (endIdx > 0 && Math.hypot(S[endIdx].x - S[endIdx - 1].x, S[endIdx].y - S[endIdx - 1].y) < 3) endIdx--;
+  const e = S[endIdx];
+  if (S[S.length - 1].t - e.t > 180) return false;
+  let s0 = S[0];
+  for (const q of S) {
+    if (e.t - q.t <= 220) {
+      s0 = q;
+      break;
+    }
+  }
+  const dt = Math.max(16, e.t - s0.t);
+  const dx = e.x - s0.x;
+  const dy = e.y - s0.y; // négatif = vers le haut
+  if (-dy < 30 || -dy < Math.abs(dx) * 0.25) return false;
+  const H = canvas.clientHeight;
+  const speed = ((Math.hypot(dx, dy) / dt) * 1000) / H; // en hauteurs d'écran par seconde
+  if (speed < 0.9) return false;
+  const power = clamp((speed - 0.9) / 4.5, 0, 1);
+
+  // On prolonge le swipe jusqu'à l'horizon : on vise là où le doigt « pointe » sur la glace.
+  const W = canvas.clientWidth;
+  const yT = world.horizonY() + 12;
+  let kx;
+  if (e.y <= yT) kx = e.x;
+  else if (s0.y > yT + 20) kx = s0.x + dx * ((yT - s0.y) / dy);
+  else kx = e.x + dx * 2;
+  kx = clamp(kx, -W, 2 * W);
+  const pt = world.groundPoint(kx, yT);
+  const me = st.me;
+  const aim = pt ? angleTo(me, pt) : me.yaw + me.head;
+
+  if (G.radar == null) G.radar = allSeen();
+  const info = G.sim.release(aim, power);
+  if (!info) return false;
   sfx.puck();
+  if (info.backhand) setBanner('Revers !', 'info');
+  return true;
 }
 
-function startDecide() {
-  S.phase = 'decide';
-  world.setHolding(true);
-  S.t = 0;
-  $('#btn-skate').hidden = false;
-  setBanner('👉 À toi ! Passe, tire ou patine', 'decide');
-  speak('À toi ! Passe, tire, ou patine.');
-  S.thief =
-    S.actors.find((a) => a.data.presser) ||
-    S.actors
-      .filter((a) => !a.team && !a.data.goalie)
-      .sort((a, b) => Math.hypot(a.end.x - S.me.x, a.end.z - S.me.z) - Math.hypot(b.end.x - S.me.x, b.end.z - S.me.z))[0];
-}
-
-function inView(p) {
-  return Math.abs(wrap(angleTo(S.me, p) - S.yaw)) < (world.getHfov() / 2) * 0.85;
-}
-
-function bestTargetPos() {
-  const b = S.ev.best;
-  if (b.type === 'pass') {
-    const a = S.actors.find((x) => x.team && x.data.num === b.num && x !== S.passer);
-    return a.pos;
-  }
-  return NET;
-}
-
-function resolve(choice) {
-  if (S.phase !== 'decide') return;
-  S.phase = 'resolve';
-  S.t = 0;
-  S.shown = false;
-  $('#btn-skate').hidden = true;
-  setBanner('', 'none');
-  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-
-  const opt =
-    choice.type === 'timeout'
-      ? { type: 'timeout', key: 'timeout', score: 0, reason: 'timeout' }
-      : S.ev.options.find((o) => o.key === (choice.type === 'pass' ? `pass:${choice.num}` : choice.type));
-  S.choice = opt;
-  world.setHolding(opt.type === 'skate');
-  const from = stickPos();
-  const meStart = { ...S.me };
-  let to = null;
-  let lift = 0;
-  S.goal = false;
-
-  if (opt.type === 'pass') {
-    to = opt.blocker || opt.target;
-    sfx.puck();
-  } else if (opt.type === 'shoot') {
-    if (opt.blocker) to = opt.blocker;
-    else if (opt.score >= 50) {
-      S.goal = true;
-      to = { x: S.me.x < 0 ? -0.6 : 0.6, z: 26.3 };
-      lift = 0.6;
-    } else {
-      to = { x: 0, z: 25.4 };
-      lift = 0.4;
+for (const [id, dir] of [
+  ['#look-left', 1],
+  ['#look-right', -1],
+]) {
+  const b = $(id);
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    lookBtn = dir;
+    try {
+      b.setPointerCapture(e.pointerId);
+    } catch {
+      /* rien */
     }
-    sfx.puck();
-  } else if (opt.type === 'timeout') {
-    to = S.thief ? S.thief.pos : from;
-    sfx.bad();
-  }
-
-  const skateDist = opt.type === 'skate' ? (opt.score >= 60 ? 4 : 1.8) : 0;
-  const dir = forward(S.faceYaw);
-  S.anim = (k) => {
-    if (opt.type === 'skate') {
-      S.me = { x: meStart.x + dir.x * skateDist * smooth(k), z: meStart.z + dir.z * skateDist * smooth(k) };
-      setPuck(stickPos());
-    } else {
-      const kk = Math.min(1, k * 1.6);
-      const p = lerpP(from, to, kk);
-      setPuck(p, 0.02 + Math.sin(kk * Math.PI) * lift * 0.5 + (kk >= 1 ? lift * 0.4 : 0));
-    }
-  };
+  });
+  const stop = () => (lookBtn = 0);
+  b.addEventListener('pointerup', stop);
+  b.addEventListener('pointercancel', stop);
+  b.addEventListener('lostpointercapture', stop);
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-function finishResolve() {
-  S.shown = true;
-  const opt = S.choice;
-  const decision = gradeDecision(opt, S.ev.best);
-  const scanStar = S.saw ? 1 : 0;
-  const stars = decision + scanStar;
-  S.results[S.index] = stars;
+// Clavier (pratique pour tester sur ordinateur) : flèches, Q/E pour l'épaule, espace pour tirer tout droit.
+window.addEventListener('keydown', (e) => {
+  if (G.phase !== 'play') return;
+  keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+  if (e.key === ' ' && G.sim) {
+    if (G.radar == null) G.radar = allSeen();
+    if (G.sim.release(G.sim.state.me.yaw + G.sim.state.me.head, 0.7)) sfx.puck();
+  }
+});
+window.addEventListener('keyup', (e) => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
 
-  if (S.goal) {
+// ---------- « Radar » : a-t-il vu ses coéquipiers avant de jouer le palet ? ----------
+function trackSeen() {
+  const st = G.sim.state;
+  const view = st.me.yaw + st.me.head;
+  const half = (world.getHfov() / 2) * 0.9;
+  for (const a of st.actors) {
+    if (!a.team || a.role === 'passer') continue;
+    if (Math.abs(wrap(angleTo(st.me, a) - view)) < half) G.seen.add(a.num);
+  }
+}
+function allSeen() {
+  return G.sim.state.actors.filter((a) => a.team && a.role !== 'passer').every((a) => G.seen.has(a.num));
+}
+
+// ---------- événements de la simulation ----------
+function handleEvents() {
+  const st = G.sim.state;
+  while (G.evIdx < st.events.length) {
+    const ev = st.events[G.evIdx++];
+    if (ev.type === 'pass' && ev.from === st.passer.num && !st.received) {
+      setBanner('🏒 Le palet arrive…', 'info');
+      sfx.puck();
+    } else if (ev.type === 'receive') {
+      sfx.puck();
+      if (st.releases.length === 0) {
+        setBanner('👉 À toi ! Swipe pour passer ou tirer', 'decide');
+        speak('À toi !');
+      }
+    } else if (ev.type === 'mateReceive' || ev.type === 'mateShot') sfx.puck();
+    else if (ev.type === 'over') onOver(ev.over);
+  }
+}
+
+const OUTCOMES = {
+  goal: '🚨 BUT !',
+  save: '🧤 Arrêt du gardien !',
+  wide: '↗️ À côté !',
+  intercept: '✋ Interception !',
+  blocked: '🛡️ Tir bloqué !',
+  stolen: '😬 Palet perdu !',
+  mateStolen: '😬 Palet perdu !',
+  lost: '😬 Palet perdu !',
+  time: '⏱️ Temps écoulé !',
+};
+
+function onOver(over) {
+  if (G.radar == null) G.radar = allSeen();
+  if (over.type === 'goal') {
     flash('BUT ! 🚨');
     sfx.horn();
-  } else if (decision === 2) sfx.good();
-  else sfx.bad();
+  } else {
+    setBanner(OUTCOMES[over.type] || 'Fin', 'info');
+    sfx.bad();
+  }
+}
 
-  const isBest = opt.key === S.ev.best.key;
+// ---------- résultat ----------
+function outcomeText(st) {
+  const o = st.over;
+  const n = o.num ?? '';
+  switch (o.type) {
+    case 'goal':
+      if (o.scorer && o.scorer.isMe) return ['🚨 BUT ! Tu as marqué.', ''];
+      if (o.scorer && o.scorer.num === st.lastPassFromMe) return [`🚨 BUT du n°${o.scorer.num} sur ta passe !`, ''];
+      return ['🚨 BUT de ton équipe !', ''];
+    case 'save':
+      return ['🧤 Arrêt du gardien.', 'Vise un coin loin du gardien, ou fais une passe pour le faire bouger.'];
+    case 'wide':
+      return ['↗️ Tir à côté du but.', 'Swipe bien en direction du but.'];
+    case 'intercept':
+      return ['✋ Passe interceptée.', 'Avant de passer, vérifie qu’aucun adversaire n’est sur la ligne de passe.'];
+    case 'blocked':
+      return ['🛡️ Tir bloqué par un adversaire.', 'Décale-toi pour avoir le but en face de toi, sans adversaire devant.'];
+    case 'stolen':
+      return ['😬 Le défenseur t’a pris le palet.', 'Quand un adversaire arrive sur toi, passe le palet ou éloigne-toi avec.'];
+    case 'mateStolen':
+      return [`😬 Le n°${n} s’est fait prendre le palet.`, ''];
+    case 'time':
+      return ['⏱️ Temps écoulé.', 'Il faut jouer plus vite : regarde, décide, joue !'];
+    default:
+      return ['😬 Palet perdu.', ''];
+  }
+}
+
+function showResult() {
+  G.shown = true;
+  G.phase = 'result';
+  const st = G.sim.state;
+  const rel = st.releases[st.releases.length - 1] || null;
+  const radar = !!G.radar;
+  const decision = !!rel && rel.grade === 2;
+  const goal = st.over.type === 'goal';
+  const stars = [radar, decision, goal].filter(Boolean).length;
+  G.results[G.index] = stars;
+
   const titles = ['Oups !', 'Presque !', 'Bien joué !', 'Génial !'];
   $('#res-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
   $('#res-title').textContent = titles[stars];
-  $('#res-choice').textContent =
-    opt.type === 'timeout' ? '⏱️ Tu n’as pas décidé à temps.' : `${isBest ? '✅' : decision === 1 ? '👍' : '❌'} Ton choix : ${describeOption(opt)}`;
-  $('#res-why').textContent = explain(opt);
-  const bestLine = $('#res-best');
-  bestLine.hidden = isBest;
-  if (!isBest) bestLine.textContent = `💡 Meilleure option : ${describeOption(S.ev.best)}. ${explain(S.ev.best)}`;
-  $('#res-scan').textContent = S.saw
-    ? '👀 Bravo, tu avais repéré la bonne option avant de recevoir le palet !'
-    : '👀 Pense à tourner la tête AVANT de recevoir le palet.';
-  $('#res-scan').className = S.saw ? 'ok' : 'warn';
-  $('#res-lesson').textContent = S.scn.lesson;
-  $('#btn-next').textContent = S.index + 1 < S.queue.length ? 'Suivant ▶' : 'Résultats ▶';
+  $('#chip-radar').classList.toggle('on', radar);
+  $('#chip-decision').classList.toggle('on', decision);
+  $('#chip-goal').classList.toggle('on', goal);
+
+  const [outcome, tip] = outcomeText(st);
+  $('#res-outcome').textContent = outcome + (st.tooHard ? ' Ta passe était trop forte pour être contrôlée.' : '');
+
+  const best = $('#res-best');
+  best.hidden = true;
+  if (rel) {
+    const icon = rel.grade === 2 ? '✅' : rel.grade === 1 ? '👍' : '❌';
+    const what = rel.chosen.type === 'nowhere' ? 'une passe dans le vide' : describeOption(rel.chosen);
+    const why = rel.chosen.type === 'nowhere' ? 'Il n’y avait personne dans cette direction.' : explain(rel.chosen);
+    $('#res-decision').textContent = `${icon} Ta décision : ${what}. ${why}`;
+    if (rel.chosen.key !== rel.ev.best.key) {
+      best.hidden = false;
+      best.textContent = `💡 Meilleure option à ce moment-là : ${describeOption(rel.ev.best)}. ${explain(rel.ev.best)}`;
+    }
+  } else {
+    $('#res-decision').textContent = '❌ Tu n’as ni passé ni tiré.';
+  }
+  if (tip && best.hidden) {
+    best.hidden = false;
+    best.textContent = `💡 ${tip}`;
+  }
+  const bh = $('#res-backhand');
+  bh.hidden = !(rel && rel.backhand);
+  if (rel && rel.backhand) {
+    bh.textContent = `🏒 C’était un revers (ta palette est ${G.hand === 'L' ? 'à gauche' : 'à droite'}) : moins fort et moins précis. Quand tu peux, oriente-toi pour passer en coup droit.`;
+  }
+  $('#res-radar').textContent = radar
+    ? '👀 Tête haute ! Tu avais repéré tous tes coéquipiers avant de jouer le palet.'
+    : '👀 Avant de jouer le palet, utilise les boutons 👀 pour repérer tous tes coéquipiers.';
+  $('#res-radar').className = radar ? 'ok' : 'warn';
+  $('#res-lesson').textContent = st.scn.lesson;
+  $('#btn-next').textContent = G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';
   showScreen('#result');
-  drawDiagram($('#res-diagram'), S.scn, S.ev, opt);
-  speak(`${titles[stars]} ${explain(opt)}`);
+  drawReplay($('#res-diagram'), st, rel);
+  speak(`${titles[stars]} ${outcome}`);
 }
 
 function next() {
-  S.index += 1;
-  if (S.index < S.queue.length) showIntro();
+  G.index += 1;
+  if (G.index < G.queue.length) showIntro();
   else showSummary();
 }
 
 function showSummary() {
-  S.phase = 'summary';
-  const total = S.results.reduce((a, b) => a + b, 0);
-  const max = S.queue.length * 3;
-  saveBest(S.level.id, total);
+  G.phase = 'summary';
+  const total = G.results.reduce((a, b) => a + (b || 0), 0);
+  const max = G.queue.length * 3;
+  const store = load(STORE_KEY, { best: {} });
+  store.best = store.best || {};
+  store.best[G.level.id] = Math.max(store.best[G.level.id] || 0, total);
+  save(STORE_KEY, store);
   const r = total / max;
   $('#sum-stars').textContent = `⭐ ${total} / ${max}`;
   $('#sum-title').textContent = r >= 0.85 ? 'Champion ! 🏆' : r >= 0.5 ? 'Belle présence ! 💪' : 'Continue, tu progresses ! 🙂';
   $('#sum-text').textContent =
     r >= 0.85
-      ? 'Tu as la tête haute et tu prends les bonnes décisions. Essaie la catégorie suivante !'
-      : 'Rejoue pour gagner plus d’étoiles : regarde partout avant de recevoir le palet.';
+      ? 'Tu joues la tête haute et tu prends les bonnes décisions. Essaie la catégorie suivante !'
+      : 'Rejoue pour gagner plus d’étoiles : repère tes coéquipiers avant de recevoir le palet.';
   showScreen('#summary');
   speak($('#sum-title').textContent);
 }
@@ -320,12 +466,7 @@ function setBanner(text, kind) {
   b.dataset.kind = kind;
   b.hidden = !text;
   clearTimeout(setBanner.timer);
-  // Le bandeau disparaît vite pour ne pas cacher les joueurs.
-  if (text) setBanner.timer = setTimeout(() => (b.hidden = true), 1800);
-}
-
-function setTimer(k) {
-  $('#timer-fill').style.transform = `scaleX(${Math.max(0, Math.min(1, k))})`;
+  if (text) setBanner.timer = setTimeout(() => (b.hidden = true), 1600);
 }
 
 function flash(text) {
@@ -336,64 +477,36 @@ function flash(text) {
   f.classList.add('show');
 }
 
+function syncRender() {
+  const st = G.sim.state;
+  st.actors.forEach((a, i) => {
+    G.meshes[i].setPos(a.x, a.z);
+    G.meshes[i].mesh.rotation.y = a.face;
+  });
+  const p = st.puck;
+  const mine = p.owner === st.me;
+  world.setHolding(mine);
+  if (!mine) world.puck.position.set(p.x, p.y, p.z);
+  world.setView(st.me.x, st.me.z, st.me.yaw + st.me.head);
+}
+
 // ---------- boucle ----------
 function update(dt) {
-  const L = S.level;
-  if (S.phase === 'menu') {
-    S.yaw += dt * 0.12;
-    world.setView(0, -12, S.yaw, 3.5);
+  if (G.phase === 'menu' || G.phase === 'hand' || !G.sim) {
+    G.menuYaw += dt * 0.12;
+    world.setView(0, -12, G.menuYaw, 3.5);
     return;
   }
-  if (['scan', 'receive', 'decide'].includes(S.phase)) {
-    S.clock += dt;
-    const k = smooth(Math.min(1, S.clock / (L.scanTime + RECEIVE_TIME)));
-    for (const a of S.actors) {
-      if (S.phase === 'decide' && a === S.thief) continue;
-      a.pos = lerpP(a.start, a.end, k);
-      a.setPos(a.pos.x, a.pos.z);
-    }
+  if (G.phase === 'play') {
+    updateInput();
+    G.sim.step(dt, input);
+    if (G.radar == null) trackSeen();
+    handleEvents();
+    const st = G.sim.state;
+    $('#timer-fill').style.transform = `scaleX(${clamp(1 - st.t / G.level.time, 0, 1)})`;
+    if (st.over && st.overT >= END_DELAY && !G.shown) showResult();
   }
-
-  switch (S.phase) {
-    case 'scan': {
-      S.t += dt;
-      if (!S.saw && inView(bestTargetPos())) S.saw = true;
-      setTimer(1 - S.t / L.scanTime);
-      if (S.t >= L.scanTime) startReceive();
-      break;
-    }
-    case 'receive': {
-      S.t += dt;
-      const k = Math.min(1, S.t / RECEIVE_TIME);
-      S.yaw = S.yawFrom + wrap(S.faceYaw - S.yawFrom) * smooth(k);
-      setPuck(lerpP(S.passerStick, stickPos(), k));
-      setTimer(1);
-      if (k >= 1) startDecide();
-      break;
-    }
-    case 'decide': {
-      S.t += dt;
-      const k = Math.min(1, S.t / L.decideTime);
-      if (S.thief) {
-        const d = Math.hypot(S.thief.end.x - S.me.x, S.thief.end.z - S.me.z) || 1;
-        const near = { x: S.me.x + ((S.thief.end.x - S.me.x) / d) * 1.1, z: S.me.z + ((S.thief.end.z - S.me.z) / d) * 1.1 };
-        S.thief.pos = lerpP(S.thief.end, near, k);
-        S.thief.setPos(S.thief.pos.x, S.thief.pos.z);
-      }
-      setPuck(stickPos());
-      setTimer(1 - k);
-      if (k >= 1) resolve({ type: 'timeout' });
-      break;
-    }
-    case 'resolve': {
-      S.t += dt;
-      S.anim(Math.min(1, S.t / RESOLVE_TIME));
-      if (S.t >= RESOLVE_TIME && !S.shown) finishResolve();
-      break;
-    }
-    default:
-  }
-  world.setView(S.me.x, S.me.z, S.yaw, EYE);
+  syncRender();
 }
 
 let last = performance.now();
@@ -405,49 +518,13 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// ---------- contrôles tactiles ----------
-const canvas = $('#scene');
-let drag = null;
-canvas.addEventListener('pointerdown', (e) => {
-  drag = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: S.yaw, moved: 0 };
-  canvas.setPointerCapture(e.pointerId);
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!drag) return;
-  const dx = e.clientX - drag.x;
-  drag.moved = Math.max(drag.moved, Math.abs(dx), Math.abs(e.clientY - drag.y));
-  if (S.phase === 'scan' || S.phase === 'decide') {
-    // Comme une visite virtuelle : on « tire » le décor avec le doigt.
-    S.yaw = drag.yaw + (dx / canvas.clientWidth) * world.getHfov() * 1.2;
-    if (S.phase === 'scan') $('#look-hint').hidden = true;
-  }
-});
-const endDrag = (e) => {
-  if (!drag) return;
-  const isTap = drag.moved < 12 && performance.now() - drag.t < 400;
-  drag = null;
-  if (isTap && S.phase === 'decide') {
-    const r = canvas.getBoundingClientRect();
-    const pick = world.pick(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    if (pick) resolve(pick);
-  }
-};
-canvas.addEventListener('pointerup', endDrag);
-canvas.addEventListener('pointercancel', () => (drag = null));
-
-// Clavier (pratique sur ordinateur pour tester)
-window.addEventListener('keydown', (e) => {
-  if (S.phase !== 'scan' && S.phase !== 'decide') return;
-  if (e.key === 'ArrowLeft') S.yaw += 0.25;
-  if (e.key === 'ArrowRight') S.yaw -= 0.25;
-  if (e.key === ' ' && S.phase === 'decide') resolve({ type: 'skate' });
-});
-
-$('#btn-skate').addEventListener('click', () => resolve({ type: 'skate' }));
-$('#btn-go').addEventListener('click', beginScan);
+// ---------- boutons ----------
+for (const b of document.querySelectorAll('.hand-btn')) b.addEventListener('click', () => setHand(b.dataset.hand));
+$('#btn-hand').addEventListener('click', () => showScreen('#hand'));
+$('#btn-go').addEventListener('click', beginPlay);
 $('#btn-next').addEventListener('click', next);
 $('#btn-retry').addEventListener('click', showIntro);
-$('#btn-again').addEventListener('click', () => startLevel(S.level.id));
+$('#btn-again').addEventListener('click', () => startLevel(G.level.id));
 $('#btn-menu').addEventListener('click', goMenu);
 $('#btn-quit').addEventListener('click', goMenu);
 $('#intro-back').addEventListener('click', goMenu);
@@ -461,16 +538,18 @@ paintSound();
 
 window.addEventListener('resize', () => {
   world.resize();
-  if (S.phase === 'menu') renderMenu();
-  if (S.phase === 'resolve' || !$('#result').hidden) drawDiagram($('#res-diagram'), S.scn, S.ev, S.choice);
+  if (G.phase === 'menu') renderMenu();
+  if (G.phase === 'result') drawReplay($('#res-diagram'), G.sim.state, G.sim.state.releases.at(-1) || null);
 });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-// Accès de débogage pour les tests automatisés
-window.__game = { S, resolve, beginScan, startLevel };
+// Accès pour les tests automatisés
+window.__game = { G, input, world, startLevel, beginPlay, setHand };
 
+G.hand = load(HAND_KEY, null);
+if (G.hand) world.setHand(G.hand);
 goMenu();
 requestAnimationFrame(frame);

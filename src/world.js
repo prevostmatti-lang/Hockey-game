@@ -173,9 +173,9 @@ function makePlayer({ team, num, goalie }) {
   g.add(helmet);
   // Crosse
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
-  g.add(rod(new THREE.Vector3(0.3, 1.0, 0.25), new THREE.Vector3(0.45, 0.03, 0.95), 0.025, stickMat));
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.32), stickMat);
-  blade.position.set(0.45, 0.04, 1.08);
+  g.add(rod(new THREE.Vector3(-0.3, 1.0, 0.25), new THREE.Vector3(-0.32, 0.03, 0.72), 0.025, stickMat));
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.3), stickMat);
+  blade.position.set(-0.32, 0.04, 0.86);
   g.add(blade);
 
   if (goalie) {
@@ -211,21 +211,21 @@ function buildMyStick() {
 }
 
 /** Place la crosse dans le champ de vision, quelle que soit l'orientation de l'écran. */
-function layoutMyStick(stick, vfov, aspect) {
+function layoutMyStick(stick, vfov, aspect, side = 1) {
   const d = 1.1;
   const halfH = Math.tan(vfov / 2) * d;
   const halfW = halfH * aspect;
   const yb = -halfH * 0.78;
   const { shaft, blade, puck } = stick.userData;
-  const a = new THREE.Vector3(Math.min(halfW * 0.9, 0.9), -halfH * 0.05 - 0.15, -0.45);
-  const b = new THREE.Vector3(0.12, yb, -d);
+  const a = new THREE.Vector3(side * Math.min(halfW * 0.9, 0.9), -halfH * 0.05 - 0.15, -0.45);
+  const b = new THREE.Vector3(side * 0.12, yb, -d);
   const dir = new THREE.Vector3().subVectors(a, b);
   shaft.scale.set(1, dir.length(), 1);
   shaft.position.copy(b);
   shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-  blade.position.set(0.0, yb, -d);
+  blade.position.set(side * 0.04, yb, -d);
   blade.rotation.set(-0.35, 0, 0);
-  puck.position.set(-0.06, yb + 0.005, -d - 0.12);
+  puck.position.set(side * 0.02, yb + 0.005, -d - 0.12);
   puck.rotation.set(-0.35, 0, 0);
 }
 
@@ -258,6 +258,7 @@ export function createWorld(canvas) {
   scene.add(actors);
   let pickables = [netHit];
   let hfov = 78 * DEG;
+  let side = 1; // 1 = palette à droite, -1 = à gauche
   let lookDrop = 0.9; // regard légèrement vers la glace (plus en portrait)
   const raycaster = new THREE.Raycaster();
 
@@ -272,7 +273,7 @@ export function createWorld(canvas) {
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
     hfov = 2 * Math.atan(Math.tan(v / 2) * aspect);
-    layoutMyStick(myStick, v, aspect);
+    layoutMyStick(myStick, v, aspect, side);
     lookDrop = aspect < 1 ? 3.2 : 0.9;
   }
   resize();
@@ -282,6 +283,28 @@ export function createWorld(canvas) {
     puck,
     resize,
     getHfov: () => hfov,
+    setHand(hand) {
+      side = hand === 'L' ? -1 : 1;
+      resize();
+    },
+    /** Hauteur (en pixels) de la ligne d'horizon à l'écran. */
+    horizonY() {
+      const p = camera.position;
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y = 0;
+      dir.normalize();
+      const v = new THREE.Vector3(p.x + dir.x * 300, 0, p.z + dir.z * 300).project(camera);
+      return ((1 - v.y) / 2) * window.innerHeight;
+    },
+    /** Point de la glace sous un point de l'écran (en pixels), ou null. */
+    groundPoint(sx, sy) {
+      raycaster.setFromCamera(new THREE.Vector2((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1), camera);
+      const r = raycaster.ray;
+      if (r.direction.y >= -1e-4) return null;
+      const t = -r.origin.y / r.direction.y;
+      return { x: r.origin.x + r.direction.x * t, z: r.origin.z + r.direction.z * t };
+    },
     setStickVisible(v) {
       myStick.visible = v;
     },

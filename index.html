@@ -16,18 +16,41 @@
   <body>
     <canvas id="scene" aria-label="Vue du joueur sur la patinoire"></canvas>
 
+    <!-- Choix droitier / gaucher -->
+    <section id="hand" class="screen" hidden>
+      <div class="card">
+        <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
+        <h2>De quel côté est ta palette ?</h2>
+        <p>Tiens ta crosse comme sur la glace. Si la palette est <b>à droite</b> de ton corps, tu es <b>droitier</b>.</p>
+        <div class="hands">
+          <button class="hand-btn" data-hand="L">
+            <span class="hand-pic" aria-hidden="true">🏒<br />⬅️</span>
+            <span class="hand-name">Gaucher</span>
+            <span class="hand-sub">palette à gauche</span>
+          </button>
+          <button class="hand-btn" data-hand="R">
+            <span class="hand-pic flip" aria-hidden="true">🏒<br />➡️</span>
+            <span class="hand-name">Droitier</span>
+            <span class="hand-sub">palette à droite</span>
+          </button>
+        </div>
+        <p class="tip">Ça change où tu portes le palet et quelles passes sont en coup droit ou en revers.</p>
+      </div>
+    </section>
+
     <!-- Menu -->
-    <section id="menu" class="screen">
+    <section id="menu" class="screen" hidden>
       <div class="card menu-card">
         <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
-        <p class="tagline">Regarde. Décide. Joue.</p>
-        <ol class="howto">
-          <li><b>👀 Regarde partout</b> en glissant ton doigt, avant de recevoir le palet.</li>
-          <li><b>👉 Décide vite</b> : touche un coéquipier pour passer, le but pour tirer, ou <i>Patine</i>.</li>
-          <li><b>💡 Comprends</b> pourquoi c’était le bon choix.</li>
-        </ol>
+        <p class="tagline">Regarde. Décide. Marque.</p>
+        <ul class="controls">
+          <li><span class="ico">☝️</span><span><b>Garde le doigt appuyé</b> pour patiner. <b>Glisse-le à gauche ou à droite</b> pour tourner.</span></li>
+          <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort.</span></li>
+          <li><span class="ico">👀</span><span>Les boutons <b>👀</b> te font regarder par-dessus ton épaule.</span></li>
+        </ul>
         <h2>Choisis ta catégorie</h2>
         <div id="levels" class="levels"></div>
+        <p class="hand-line">Palette <b id="hand-label"></b> · <button id="btn-hand" class="link">changer</button></p>
         <p id="portrait-tip" class="tip">📱 Astuce : tourne ton appareil à l’horizontale pour mieux voir.</p>
       </div>
     </section>
@@ -37,7 +60,8 @@
       <div class="card">
         <p id="intro-step" class="step"></p>
         <h2 id="intro-title"></h2>
-        <p>Tu vas recevoir le palet de ton coéquipier.<br /><b>Regarde partout avant qu’il arrive !</b></p>
+        <p id="intro-text"></p>
+        <p class="goal">🎯 Objectif : marquer un but avec ton équipe.</p>
         <div class="row">
           <button id="intro-back" class="btn ghost">Menu</button>
           <button id="btn-go" class="btn big">C’est parti !</button>
@@ -56,8 +80,9 @@
       </div>
       <div id="timer"><div id="timer-fill"></div></div>
       <div id="banner" hidden></div>
-      <div id="look-hint">◀ glisse ton doigt pour tourner la tête ▶</div>
-      <button id="btn-skate" class="btn big skate" hidden>⛸️ Patiner</button>
+      <div id="ctl-hint">☝️ Garde ton doigt appuyé pour patiner</div>
+      <button id="look-left" class="look-btn left" aria-label="Regarder à gauche">👀<span>◀</span></button>
+      <button id="look-right" class="look-btn right" aria-label="Regarder à droite"><span>▶</span>👀</button>
     </div>
 
     <div id="flash" aria-live="polite"></div>
@@ -68,15 +93,21 @@
         <div class="result-text">
           <div id="res-stars" class="stars"></div>
           <h2 id="res-title"></h2>
-          <p id="res-choice" class="choice"></p>
-          <p id="res-why"></p>
+          <div class="chips">
+            <span id="chip-radar" class="chip">👀 Radar</span>
+            <span id="chip-decision" class="chip">🧠 Décision</span>
+            <span id="chip-goal" class="chip">🥅 But</span>
+          </div>
+          <p id="res-outcome" class="choice"></p>
+          <p id="res-decision"></p>
           <p id="res-best" class="best"></p>
-          <p id="res-scan"></p>
+          <p id="res-backhand" class="note"></p>
+          <p id="res-radar"></p>
           <p class="lesson">🎓 <span id="res-lesson"></span></p>
         </div>
         <div class="result-diagram">
           <canvas id="res-diagram"></canvas>
-          <p class="legend"><span class="g">━ meilleure option</span> <span class="o">┅ ton choix</span></p>
+          <p class="legend"><span class="y">━ toi</span> <span class="k">┅ palet</span> <span class="g">━ meilleure option</span></p>
         </div>
         <div class="row actions">
           <button id="btn-retry" class="btn ghost">↺ Rejouer</button>
