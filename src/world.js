@@ -155,7 +155,7 @@ function makeBlade({ length = 0.3, height = 0.075, thick = 0.014, color = 0x1f24
   let z = 0;
   let ang = 0;
   for (let i = 0; i < n; i++) {
-    // Courbure réglementaire : 1,5 cm de creux au maximum, mesuré du talon à la pointe
+    // Creux d’environ 1 cm (mesuré depuis la droite talon-pointe) : sous la limite de 1,5 cm
     // (règlement IIHF, section 2 « Sticks » : palette 32 cm max, hauteur 5 à 7,5 cm, manche 3 cm max).
     const a = ang + 0.033 * i;
     const cx = x + (Math.cos(a) * seg) / 2;
