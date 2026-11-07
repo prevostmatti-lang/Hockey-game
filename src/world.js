@@ -229,6 +229,26 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), team ? std(0x0b2545) : dark);
   helmet.position.y = 1.62;
   g.add(helmet);
+  // Visage tourné vers l'avant (+z) : yeux et grille du casque, pour savoir tout de suite
+  // si on voit le joueur de face ou de dos.
+  for (const sx of [-0.05, 0.05]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), std(0xffffff));
+    eye.position.set(sx, 1.62, 0.13);
+    g.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), std(0x111111));
+    pupil.position.set(sx, 1.62, 0.15);
+    g.add(pupil);
+  }
+  const cage = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2, 0.16, 0.01),
+    new THREE.MeshStandardMaterial({ color: 0xcccccc, wireframe: true }),
+  );
+  cage.position.set(0, 1.55, 0.17);
+  g.add(cage);
+  // Dos du maillot : une bande blanche, pour reconnaître le dos du joueur.
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.02), std(0xffffff));
+  back.position.set(0, 1.3, -0.29);
+  g.add(back);
   // Crosse
   // Crosse d'un droitier (palette à droite, côté -x du repère du joueur) : la main du haut est la main
   // GAUCHE, le manche traverse devant le corps jusqu'à la palette à droite, et le creux de la palette
