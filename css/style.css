@@ -795,3 +795,37 @@ p {
 .drill-btn {
   min-width: 120px;
 }
+
+/* Téléphone à l'horizontale : bandeaux compacts pour laisser voir le jeu près de l'horizon. */
+@media (max-height: 480px) {
+  .pill {
+    font-size: 13px;
+    padding: 4px 10px;
+  }
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 17px;
+  }
+  #timer {
+    height: 8px;
+    margin-top: 4px;
+  }
+  #ctl-hint {
+    top: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    font-size: 12px;
+    padding: 5px 10px;
+    animation: none;
+    transform: translateX(-50%);
+    opacity: 0.9;
+  }
+  #hud:has(#ctl-hint:not([hidden])) #banner {
+    margin-top: 6px;
+  }
+  #banner {
+    font-size: 15px;
+    padding: 5px 12px;
+    margin-top: 6px;
+  }
+}

@@ -95,7 +95,7 @@ function renderMenu() {
     list.appendChild(row);
   }
   $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
-  $('#portrait-tip').hidden = window.innerWidth < window.innerHeight;
+  $('#portrait-tip').hidden = window.innerWidth > window.innerHeight;
 }
 
 function goMenu() {

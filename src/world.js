@@ -1,7 +1,7 @@
 // Monde 3D : patinoire, buts, joueurs, palet, et caméra à hauteur des yeux.
 import * as THREE from '../vendor/three.module.min.js';
 
-export const EYE = 1.45;
+export const EYE = 1.38; // yeux d'un patineur légèrement fléchi
 const W = 26;
 const L = 60;
 const DEG = Math.PI / 180;
@@ -327,6 +327,8 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
 function buildMyStick(hand) {
   const grp = new THREE.Group();
   const stick = makeStick({ hand });
+  // En vue joueur, le bout du manche est dans ta main : on masque le pommeau, qui serait collé à l'écran.
+  stick.children[2].visible = false;
   const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 24), std(0x111111, { roughness: 0.4 }));
   puck.position.set(STICK_PUCK.x * (hand === 'L' ? -1 : 1), 0.015, STICK_PUCK.z);
   grp.add(stick, puck);
@@ -372,15 +374,19 @@ export function createWorld(canvas) {
     const h = window.innerHeight;
     renderer.setSize(w, h, false);
     const aspect = w / h;
-    // Le jeu se joue en portrait : on garde environ 60° de champ horizontal (78° en paysage).
-    const target = (aspect < 1 ? 60 : 78) * DEG;
+    // Le jeu se joue en paysage, avec une vue large (115° en largeur) pour voir le jeu autour de soi.
+    // En portrait (si l'appareil est tenu droit), on se limite à 60°.
+    const target = (aspect < 1 ? 60 : 115) * DEG;
     let v = 2 * Math.atan(Math.tan(target / 2) / aspect);
     v = Math.min(100 * DEG, Math.max(40 * DEG, v));
     camera.fov = v / DEG;
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
     hfov = 2 * Math.atan(Math.tan(v / 2) * aspect);
-    lookDrop = aspect < 1 ? 6 : 1.8; // regard un peu vers la glace, pour voir sa crosse et le palet
+    // Regard incliné juste assez pour garder la palette et le palet dans le bas de l'écran,
+    // quel que soit le format (téléphone allongé ou tablette).
+    const pitch = Math.min(35 * DEG, Math.max(10 * DEG, 63 * DEG - v / 2));
+    lookDrop = Math.tan(pitch) * 10;
   }
   resize();
 

@@ -10,7 +10,7 @@ import { makeVariant } from './generator.js';
 import { angleTo, wrap } from './sim.js';
 
 const $ = (s) => document.querySelector(s);
-const EYE = 1.45;
+const EYE = 1.38;
 
 /** Interface commune : bandeau, chrono, consigne, retour, boutons. */
 function ui(name) {
