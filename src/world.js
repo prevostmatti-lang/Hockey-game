@@ -155,8 +155,9 @@ function makeBlade({ length = 0.3, height = 0.075, thick = 0.014, color = 0x1f24
   let z = 0;
   let ang = 0;
   for (let i = 0; i < n; i++) {
-    // Légère courbure vers la face coup droit, plus marquée vers la pointe.
-    const a = ang + 0.12 * i;
+    // Courbure réglementaire : environ 1,5 cm de creux sur la longueur de la palette
+    // (les règlements IIHF / NHL limitent la courbure à 1,5-1,9 cm).
+    const a = ang + 0.035 * i;
     const cx = x + (Math.cos(a) * seg) / 2;
     const cz = z + (Math.sin(a) * seg) / 2;
     const piece = new THREE.Mesh(new THREE.BoxGeometry(seg * 1.04, height, thick), mat);
@@ -258,6 +259,7 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   const topHand = new THREE.Vector3(0.3, 1.0, 0.25); // bout du bras gauche
   const heel = new THREE.Vector3(-0.28, 0.0, 0.82);
   const stick = new THREE.Group();
+  stick.name = 'stick';
   stick.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), topHand, stickMat));
   const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
   blade.position.copy(heel);
