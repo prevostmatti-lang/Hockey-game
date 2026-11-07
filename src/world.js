@@ -256,15 +256,13 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   // Un gaucher est le miroir exact : main du haut droite, palette à gauche, courbée vers la droite.
   const stickMat = std(goalie ? 0x8b5a2b : 0x1f2430);
   const topHand = new THREE.Vector3(0.3, 1.0, 0.25); // bout du bras gauche
-  const heel = new THREE.Vector3(-0.28, 0.0, 0.9);
+  const heel = new THREE.Vector3(-0.28, 0.0, 0.82);
   const stick = new THREE.Group();
   stick.add(shaftBetween(new THREE.Vector3(heel.x, 0.045, heel.z), topHand, stickMat));
   const blade = makeBlade(goalie ? { length: 0.38, height: 0.09, color: 0x8b5a2b } : { length: 0.3 });
   blade.position.copy(heel);
-  const ux = heel.x - topHand.x;
-  const uz = heel.z - topHand.z;
-  const ul = Math.hypot(ux, uz);
-  alongX(blade, ux / ul, uz / ul);
+  // Palette posée devant le patin, pointe vers l'avant et légèrement vers l'intérieur.
+  alongX(blade, 0.1, 0.995);
   blade.scale.z = -1; // creux de la palette tourné vers la gauche du joueur
   stick.add(blade);
   if (hand === 'L') stick.scale.x = -1;
