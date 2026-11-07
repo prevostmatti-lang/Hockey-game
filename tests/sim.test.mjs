@@ -94,3 +94,14 @@ test('patiner : le doigt appuyé fait avancer, le glissement fait tourner', () =
   run(sim, 0.5, { skate: true, turn: 1 });
   assert.ok(me.yaw < yaw0 - 0.5, 'glisser à droite tourne à droite');
 });
+
+test('autant de joueurs droitiers que gauchers dans chaque équipe et sur la glace', async () => {
+  const { DEFENSE_SCENARIOS } = await import('../src/scenarios.js');
+  for (const s of [...SCENARIOS, ...DEFENSE_SCENARIOS]) {
+    const sim = createSim(s, U9, 'R');
+    const skaters = sim.state.actors.filter((a) => !a.goalie);
+    const gap = (list) => Math.abs(list.filter((a) => a.hand === 'R').length - list.filter((a) => a.hand === 'L').length);
+    for (const team of [true, false]) assert.ok(gap(skaters.filter((a) => a.team === team)) <= 1, `${s.id} équipe ${team}`);
+    assert.ok(gap(skaters) <= 1, `${s.id} sur la glace`);
+  }
+});

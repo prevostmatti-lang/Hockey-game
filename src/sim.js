@@ -78,8 +78,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       to: data.to ? { ...data.to } : { x: data.x, z: data.z },
       face: 0,
       hasT: 0,
-      // Main du joueur : donnée par la situation, sinon on alterne (n° impair = gaucher) pour mélanger l'équipe.
-      hand: data.hand || (data.goalie || data.num == null || data.num % 2 === 0 ? 'R' : 'L'),
+      hand: data.hand || null, // complété plus bas pour équilibrer droitiers et gauchers
       ...extra,
     };
     a.face = angleTo(a, me);
@@ -99,6 +98,26 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     const a = mk(o, { team: false, goalie: !!o.goalie, role, cover: o.cover });
     if (a.goalie) a.face = Math.PI;
     if (o.carrier) carrier = a;
+  }
+  // Autant de droitiers que de gauchers dans chaque équipe (à un joueur près si le nombre est impair).
+  // On alterne ; les adversaires commencent par un gaucher pour équilibrer aussi l'ensemble de la glace.
+  // Une main donnée dans la situation (champ `hand`) est respectée.
+  for (const team of [true, false]) {
+    const skaters = actors.filter((a) => a.team === team && !a.goalie);
+    let right = skaters.filter((a) => a.hand === 'R').length;
+    let left = skaters.filter((a) => a.hand === 'L').length;
+    const preferLeftFirst = !team;
+    for (const a of skaters) {
+      if (a.hand) continue;
+      if (right < left || (right === left && !preferLeftFirst)) {
+        a.hand = 'R';
+        right++;
+      } else {
+        a.hand = 'L';
+        left++;
+      }
+    }
+    for (const a of actors) if (a.goalie && !a.hand) a.hand = 'R';
   }
   const goalie = actors.find((a) => a.goalie && !a.team);
   const ourGoalie = actors.find((a) => a.goalie && a.team);
