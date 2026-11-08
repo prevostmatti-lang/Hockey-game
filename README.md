@@ -25,13 +25,16 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 
 | Geste | Action |
 |---|---|
-| 🕹️ Pousser le pouce (zone de déplacement) | patiner ; plus loin = plus vite ; sur le côté = tourner (rotation exponentielle) ; vers le bas = reculer |
+| 🕹️ Pousser le pouce (zone de déplacement) | patiner ; plus loin = plus vite ; sur le côté = tourner (rotation exponentielle) ; vers le bas, même en biais = reculer (en bas à gauche : reculer vers la gauche) |
 | 👀 Glisser (zone de vision) | tourner la tête sans changer de direction ; le regard revient devant quand on lève le doigt |
 | ⬆️ Swipe rapide vers le haut (n'importe où) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
 | ⬆️ Swipe **long** vers le haut | **passe levée** : le palet passe au-dessus des crosses adverses |
 | 🎯 Toucher une cible sur la cage (près du but) | tir dans cette zone : haut gauche, haut droite, bas gauche, bas droite ou entre les jambières |
 | Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
+
+### Palet hors de l'écran
+Quand le palet n'est pas dans le champ de vision, une icône palet avec une flèche apparaît sur le bord de l'écran, du côté où il se trouve, avec sa distance (« derrière toi » s'il est dans le dos).
 
 ### Une-deux
 Dans certaines situations (signalées 🔁 avant de jouer : U9 « Le copain tout seul », U11 « 2 contre 1 », U13 « Contre-attaque »), le coéquipier à qui tu passes le palet te le **rend** si tu te démarques bien : personne à moins de 3 m de toi, ligne de passe libre, et tu es mieux placé que lui pour aller au but. Sinon il garde le palet ou joue seul.

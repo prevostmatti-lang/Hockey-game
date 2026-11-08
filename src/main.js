@@ -132,6 +132,7 @@ function startLevel(levelId, mode = G.mode) {
 
 function loadScenario(scn) {
   stopAiming();
+  $('#puck-ind').hidden = true;
   G.sim = createSim(scn, G.level, G.hand);
   G.evIdx = 0;
   G.seen = new Set();
@@ -238,8 +239,9 @@ function readStick(sp) {
   const r = Math.hypot(dx, dy);
   if (r < DEAD) return { zone: 'push', theta: 0, dx, dy };
   const theta = Math.atan2(dx, -dy);
-  // Jusqu'à 135° : on avance et on tourne ; au-delà (pouce tiré vers le bas) : on recule.
-  if (Math.abs(theta) <= 135 * DEG) return { zone: 'push', theta, dx, dy };
+  // Pouce vers le haut ou sur le côté : on avance et on tourne.
+  // Pouce vers le bas, même en biais (au-delà de 105°) : on recule, et on se dirige en reculant.
+  if (Math.abs(theta) <= 105 * DEG) return { zone: 'push', theta, dx, dy };
   return { zone: 'back', theta, dx, dy };
 }
 
@@ -252,6 +254,8 @@ function updateInput() {
   brakePulse = false;
   // Angle du pouce (0 à 90°) ; la réponse exponentielle est appliquée dans la simulation (sim.js : turnRate).
   let turn = st && st.zone === 'push' ? clamp(st.theta / (90 * DEG), -1, 1) : 0;
+  // En reculant : pouce en bas à gauche = reculer vers la gauche (le corps tourne doucement).
+  if (st && st.zone === 'back') turn = clamp(-st.dx / 70, -1, 1) * 0.75;
   if (keys.has('ArrowLeft')) turn = -1;
   if (keys.has('ArrowRight')) turn = 1;
   input.turn = turn;
@@ -863,6 +867,35 @@ function syncRender() {
   world.setView(st.me.x, st.me.z, st.me.yaw + st.me.head);
 }
 
+// ---------- palet hors de l'écran ----------
+// Quand le palet n'est pas dans le champ de vision, une icône palet avec une flèche apparaît sur le
+// bord de l'écran, du côté où il se trouve (en bas, « derrière toi », s'il est dans le dos).
+function updatePuckIndicator() {
+  const el = $('#puck-ind');
+  const st = G.sim && G.phase === 'play' ? G.sim.state : null;
+  if (!st || st.over || st.puck.owner === st.me) {
+    el.hidden = true;
+    return;
+  }
+  const p = st.puck;
+  const view = st.me.yaw + st.me.head;
+  const rel = wrap(angleTo(st.me, p) - view); // + = à gauche
+  const half = world.getHfov() / 2;
+  if (Math.abs(rel) < half * 0.92) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const d = Math.hypot(p.x - st.me.x, p.z - st.me.z);
+  const behind = Math.abs(rel) > (150 * Math.PI) / 180;
+  el.dataset.side = behind ? 'back' : rel > 0 ? 'left' : 'right';
+  $('#puck-ind-arrow').textContent = behind ? '⬇' : rel > 0 ? '⬅' : '➡';
+  $('#puck-ind-text').textContent = behind ? `derrière toi · ${Math.round(d)} m` : `${Math.round(d)} m`;
+  // Plus le palet est loin derrière sur le côté, plus l'icône descend sur le bord.
+  const k = Math.min(1, (Math.abs(rel) - half) / (Math.PI - half));
+  el.style.setProperty('--k', k.toFixed(2));
+}
+
 // ---------- boucle ----------
 function update(dt) {
   if (G.phase === 'drill' && G.drill) {
@@ -891,6 +924,7 @@ function update(dt) {
     const st = G.sim.state;
     $('#timer-fill').style.transform = `scaleX(${clamp(1 - st.t / G.level.time, 0, 1)})`;
     drawShotPanel();
+    updatePuckIndicator();
     if (st.over && st.overT >= END_DELAY && !G.shown) showResult();
   }
   syncRender();
