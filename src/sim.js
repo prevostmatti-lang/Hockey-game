@@ -27,7 +27,7 @@ const ME_ACCEL = 5; // accélération (m/s²)
 // pour garder l'équilibre des situations.
 const PACE = 0.75;
 const GLIDE = 2.6; // ralentissement quand on glisse sans pousser (m/s²) : ~2 s pour s'arrêter
-const TURN_MAX = 3.0; // vitesse de rotation au maximum (rad/s) : demi-tour en un peu plus d'une seconde
+const TURN_MAX = 2.2; // vitesse de rotation au maximum (rad/s, ≈125°/s) : demi-tour en 1,5 s environ
 const TURN_CURVE = 3; // courbure exponentielle de la réponse au pouce
 
 /** Réponse exponentielle : petit écart du pouce = rotation douce ; pouce à 90° = rotation très rapide. */
