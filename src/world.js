@@ -533,11 +533,11 @@ export function createWorld(canvas) {
     renderer.setSize(w, h, false);
     const aspect = w / h;
     // Le jeu se joue en paysage, avec une vue large, type « fish-eye » (130° en largeur) pour voir le jeu autour de soi.
-    // En portrait aussi, vue « fish-eye » : 90° en largeur (l'écran étant étroit, la vue est très haute).
+    // En portrait aussi, vue « fish-eye » : 110° en largeur (l'écran étant étroit, la vue est très haute).
     const portrait = aspect < 1;
-    const target = (portrait ? 90 : 130) * DEG;
+    const target = (portrait ? 110 : 130) * DEG;
     let v = 2 * Math.atan(Math.tan(target / 2) / aspect);
-    v = Math.min((portrait ? 135 : 115) * DEG, Math.max(40 * DEG, v));
+    v = Math.min((portrait ? 150 : 115) * DEG, Math.max(40 * DEG, v));
     camera.fov = v / DEG;
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
