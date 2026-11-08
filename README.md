@@ -28,8 +28,15 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | 🕹️ Pousser le pouce (zone de déplacement) | patiner ; plus loin = plus vite ; sur le côté = tourner (rotation exponentielle) ; vers le bas = reculer |
 | 👀 Glisser (zone de vision) | tourner la tête sans changer de direction ; le regard revient devant quand on lève le doigt |
 | ⬆️ Swipe rapide vers le haut (n'importe où) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
+| ⬆️ Swipe **long** vers le haut | **passe levée** : le palet passe au-dessus des crosses adverses |
+| 🎯 Toucher une cible sur la cage (près du but) | tir dans cette zone : haut gauche, haut droite, bas gauche, bas droite ou entre les jambières |
 | Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
+
+### Tir et cage
+- **Assistance au tir** : un swipe à peu près vers le but est guidé vers la cible libre la plus proche (aide forte en U9, faible en U13).
+- **Cage fixe à l'écran** : à moins de 16 m du but avec le palet, la cage vue de face apparaît avec le gardien et 5 cibles. Une cible est **verte** si le tir peut y passer, **rouge** si le gardien la couvre ou si un défenseur bloque un tir bas. Le jeu tient compte de la position du gardien, du temps qu'il a pour glisser vers le tir, et de sa posture : **debout** (coins et entre les jambières ouverts) ou **en papillon** près du but (tout le bas fermé, coins hauts ouverts).
+- **Le palet vole** : les tirs hauts et les passes levées montent puis retombent (gravité). Un tir très fort est un peu moins précis.
 
 Une situation se joue ainsi :
 1. Un coéquipier envoie le palet. Avant qu'il arrive, l'enfant se tourne pour repérer ses coéquipiers.

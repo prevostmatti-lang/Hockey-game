@@ -13,6 +13,85 @@ import { evaluate, gradeDecision, NET } from './evaluate.js';
 
 const GOAL_Z = 26;
 const OWN_NET = { x: 0, z: -26 };
+const NET_H = 1.22; // hauteur de la cage (m)
+const GRAVITY = 9.8;
+
+/**
+ * Cibles de tir dans la cage, vues par le tireur qui attaque le but en z = +26
+ * (sa gauche à l'écran = x positif). La cible « entre les jambières » suit le gardien.
+ */
+export const SHOT_ZONES = [
+  { id: 'HG', label: 'haut gauche', x: 0.66, y: 1.02 },
+  { id: 'HD', label: 'haut droite', x: -0.66, y: 1.02 },
+  { id: 'BG', label: 'bas gauche', x: 0.66, y: 0.14 },
+  { id: 'BD', label: 'bas droite', x: -0.66, y: 0.14 },
+  { id: 'J', label: 'entre les jambières', x: 0, y: 0.1, five: true },
+];
+
+/**
+ * Le gardien couvre-t-il le point (x, y) de sa cage ? Debout : le corps et les bras couvrent le
+ * milieu, les quatre coins et l'espace entre les jambières sont ouverts. En papillon (à genoux,
+ * jambières écartées au sol) : tout le bas est fermé, les coins hauts sont ouverts.
+ */
+export function goalieCovers(keeper, x, y, scale = 1) {
+  const rx = Math.abs(x - keeper.x) / scale;
+  if (keeper.butterfly) {
+    if (y < 0.36 && rx < 0.86) return true; // jambières au sol
+    if (y < 0.86 && rx < 0.36) return true; // corps
+    if (y > 0.4 && y < 0.8 && rx < 0.56) return true; // bras, mitaine, bouclier
+    return false;
+  }
+  if (y < 0.22 && rx < 0.1) return false; // entre les jambières
+  if (y < 1.05 && rx < 0.42) return true; // corps et jambières
+  if (y > 0.45 && y < 0.95 && rx < 0.6) return true; // bras
+  return false;
+}
+
+/**
+ * État des cibles de tir face à un gardien : position dans la cage et ouverture.
+ * Le gardien se tient devant sa ligne : on regarde où la trajectoire du tireur (`from`)
+ * croise la position du gardien, pas seulement la ligne de but.
+ */
+export function zoneStatus(keeper, from = null, reach = 0, skaters = []) {
+  const netZ = keeper.z > 0 ? GOAL_Z : -GOAL_Z;
+  return SHOT_ZONES.map((z) => {
+    const x = z.five ? keeper.x : z.x;
+    let xAt = x;
+    let yAt = z.y;
+    if (from && Math.abs(netZ - from.z) > 0.5) {
+      const k = (keeper.z - from.z) / (netZ - from.z);
+      xAt = from.x + (x - from.x) * k;
+      yAt = 0.03 + (z.y - 0.03) * k; // le palet monte : il est un peu plus bas en passant devant le gardien
+    }
+    // Le gardien a le temps de glisser de `reach` mètres vers le tir avant que le palet arrive.
+    const k2 = z.five ? keeper : { ...keeper, x: Math.max(-0.8, Math.min(0.8, keeper.x + Math.max(-reach, Math.min(reach, xAt - keeper.x)))) };
+    // Un défenseur sur la trajectoire bloque les tirs bas (un tir haut passe au-dessus de sa crosse).
+    let blocked = false;
+    if (from) {
+      for (const sk of skaters) {
+        const r = segDist(sk, from, { x, z: netZ });
+        const yy = 0.03 + (z.y - 0.03) * r.t;
+        if (r.t > 0.05 && r.t < 0.95 && r.d < 0.7 && yy < 0.4) blocked = true;
+      }
+    }
+    // La cible « entre les jambières » se vise sur le gardien lui-même.
+    return { ...z, x, blocked, open: !blocked && !goalieCovers(k2, z.five ? keeper.x : xAt, yAt) };
+  });
+}
+
+/** Distance que le gardien peut parcourir avant qu'un tir (≈ 24 m/s) parti de `from` n'arrive. */
+function goalieReach(keeper, from, level) {
+  if (!from) return 0;
+  const netZ = keeper.z > 0 ? GOAL_Z : -GOAL_Z;
+  const t = Math.hypot(from.x, netZ - from.z) / 24 - (level.goalieReaction ?? 0.2);
+  return Math.max(0, t) * (level.goalie ?? 2.5);
+}
+
+/** Vitesse verticale pour que le palet arrive à la hauteur h après une distance d. */
+function liftFor(d, speed, h, y0 = 0.03) {
+  const t = d / Math.max(4, speed);
+  return (h - y0 + 0.5 * GRAVITY * t * t) / t;
+}
 const POST = 0.915;
 const GOALIE_Z = 25.2;
 const GOALIE_HALF = 0.45;
@@ -186,13 +265,15 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     emit('over', { over: s.over });
   }
 
-  function launch(from, aim, speed, by, shot) {
+  function launch(from, aim, speed, by, shot, vy = 0) {
     const p = s.puck;
     const b = blade(from);
     const f = fwd(aim);
     p.owner = null;
     p.x = b.x;
     p.z = b.z;
+    p.y = 0.03;
+    p.vy = vy;
     p.vx = f.x * speed;
     p.vz = f.z * speed;
     p.releasedBy = by;
@@ -325,13 +406,17 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         return;
       }
       const toNet = dist(a, NET);
-      const shootAim = () => {
-        const gx = goalie ? goalie.x : 0;
-        const tx = gx > 0 ? -0.7 : 0.7;
-        return angleTo(blade(a), { x: tx, z: GOAL_Z });
+      const shoot = (speed) => {
+        const zs = goalie ? zoneStatus(goalie, a, 0, actors.filter((o) => !o.team && !o.goalie)).filter((z) => z.open) : [];
+        const z = zs.length ? zs[Math.floor(rand() * zs.length)] : { x: goalie && goalie.x > 0 ? -0.7 : 0.7, y: 0.15 };
+        const b = blade(a);
+        const err = 0.03 * dist(b, NET);
+        const tx = z.x + (rand() - 0.5) * 2 * err;
+        const ty = clamp(z.y + (rand() - 0.5) * 2 * err * 0.6, 0.05, 1.4);
+        launch(a, angleTo(b, { x: tx, z: GOAL_Z }), speed, a, true, liftFor(dist(b, { x: tx, z: GOAL_Z }), speed, ty));
       };
       if (a.hasT > 0.3 && toNet < 12 && laneClear(a, NET, 1.1)) {
-        launch(a, shootAim(), 21, a, true);
+        shoot(21);
         emit('mateShot', { num: a.num });
         return;
       }
@@ -344,7 +429,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
           return;
         }
         if (a.hasT > 2.2) {
-          launch(a, shootAim(), 19, a, true);
+          shoot(19);
           emit('mateShot', { num: a.num });
           return;
         }
@@ -383,6 +468,9 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     a.x += step;
     a.vx = step / dt;
     a.face = angleTo(a, p);
+    // Le palet est tout près : le gardien se met en papillon (tout le bas fermé, les coins hauts ouverts).
+    // Posture : en papillon quand le palet est tout près ; elle ne change pas pendant un tir.
+    if (!(p.shot && !p.owner)) a.butterfly = Math.hypot(p.x, netZ - p.z) < 8.5;
   }
 
   function oppAI(a, dt) {
@@ -437,16 +525,29 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     if (p.owner === a) {
       a.hasT += dt;
       const toNet = dist(a, OWN_NET);
-      const shootAim = () => angleTo(blade(a), { x: ourGoalie && ourGoalie.x > 0 ? -0.8 : 0.8, z: -GOAL_Z });
+      const shoot = (speed, forced = false) => {
+        const zs = ourGoalie ? zoneStatus(ourGoalie, a, 0, [me, ...actors.filter((o) => o.team && !o.goalie)]).filter((z) => z.open) : [];
+        const z = zs.length && rand() < 0.5 ? zs[Math.floor(rand() * zs.length)] : { x: (rand() - 0.5) * 1.6, y: 0.1 + rand() * 0.9 };
+        const b = blade(a);
+        // Plus le tir est lointain, moins il est précis.
+        // Tir forcé (aucune solution de passe) : beaucoup moins précis.
+        // Sous la pression d'un défenseur (à moins de 2,5 m), le tir est aussi moins précis.
+        const pressed = defenders().some((d) => dist(d, a) < 2.5);
+        const err = 0.05 * dist(b, OWN_NET) * (forced ? 2.5 : 1) * (pressed ? 1.8 : 1);
+        const tx = z.x + (rand() - 0.5) * 2 * err;
+        const ty = clamp(z.y + (rand() - 0.5) * 2 * err * 0.6, 0.05, 1.4);
+        launch(a, angleTo(b, { x: tx, z: -GOAL_Z }), speed, a, true, liftFor(dist(b, { x: tx, z: -GOAL_Z }), speed, ty));
+      };
       if (a.hasT > 0.35 && toNet < 11 && laneClear(blade(a), OWN_NET, 1.1, false)) {
         keyMoment();
-        launch(a, shootAim(), 19, a, true);
+        shoot(19);
         emit('oppShot', { num: a.num });
         return;
       }
       // Pressé par le joueur (à moins de 3,5 m) ou collé par un coéquipier.
       const pressured = dist(me, a) < 3.5 || defenders().some((d) => dist(d, a) < 1.5);
-      if (a.hasT > level.passReact && (pressured || toNet < 9)) {
+      // Pressé, près du but, ou après ~2 s de possession : il cherche un coéquipier libre.
+      if (a.hasT > level.passReact && (pressured || toNet < 9 || a.hasT > 2 + level.passReact)) {
         let best = null;
         for (const m of actors) {
           if (m.team || m === a || m.goalie) continue;
@@ -466,7 +567,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       }
       if (a.hasT > 7) {
         keyMoment();
-        launch(a, shootAim(), 17, a, true);
+        shoot(17, true);
         emit('oppShot', { num: a.num });
         return;
       }
@@ -534,7 +635,15 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     const pz = p.z;
     p.x += p.vx * dt;
     p.z += p.vz * dt;
-    p.y = p.shot && sp > 8 ? 0.25 : 0.02;
+    // Palet levé : il monte puis retombe (gravité).
+    if (p.vy || p.y > 0.03) {
+      p.vy -= GRAVITY * dt;
+      p.y += p.vy * dt;
+      if (p.y <= 0.02) {
+        p.y = 0.02;
+        p.vy = 0;
+      }
+    }
 
     if (!s.over) {
       for (const net of [
@@ -546,7 +655,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         if (net.keeper && crossed(pz, p.z, plane)) {
           const k = (plane - pz) / (p.z - pz);
           const x = px + (p.x - px) * k;
-          if (Math.abs(x - net.keeper.x) < (net.keeper.team ? 0.38 : GOALIE_HALF)) {
+          if (goalieCovers(net.keeper, x, p.y)) {
             p.x = x;
             p.z = plane - net.sign * 0.3;
             gain(net.keeper);
@@ -557,7 +666,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         if (crossed(pz, p.z, net.z)) {
           const k = (net.z - pz) / (p.z - pz);
           const x = px + (p.x - px) * k;
-          if (Math.abs(x) < POST) {
+          if (Math.abs(x) < POST && p.y < NET_H) {
             p.x = x;
             p.z = net.z + net.sign * 0.5;
             p.vx = 0;
@@ -583,7 +692,8 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     // Qui récupère le palet ?
     const since = s.t - p.releaseT;
     const sp2 = Math.hypot(p.vx, p.vz);
-    const meReach = defense && !p.team ? (since < 0.15 ? 0 : sp2 > 12 ? 0.75 : 1.1) : 1.1;
+    const lifted = p.y > 0.3; // palet levé : il passe au-dessus des crosses
+    const meReach = lifted ? 0 : defense && !p.team ? (since < 0.15 ? 0 : sp2 > 12 ? 0.75 : 1.1) : 1.1;
     if (!(p.releasedBy === me && since < 0.35) && dist(blade(me), p) < meReach && sp2 < 27) {
       const how = !p.team && p.shot ? 'block' : !p.team && sp2 > 0.5 ? 'intercept' : 'loose';
       gain(me);
@@ -595,6 +705,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       // La première passe (du passeur vers le joueur) est pour lui seul.
       if (p.releasedBy && p.releasedBy.role === 'passer' && !s.received) continue;
       const b = blade(a);
+      if (lifted && !(a.team && p.y < 0.7)) continue;
       if (defense) {
         if (dist(b, p) < 0.95 || dist(a, p) < 0.95) {
           if (a.team) {
@@ -701,23 +812,44 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
    * Le joueur lâche le palet (passe ou tir) dans la direction `aim`, avec une force de 0 à 1.
    * Renvoie l'analyse de la décision, ou null si le joueur n'a pas le palet.
    */
-  function release(aim, power) {
+  /**
+   * @param opts.zone   identifiant d'une cible de tir (HG, HD, BG, BD, J) : tir dans cette zone
+   * @param opts.lifted passe levée (au-dessus des crosses)
+   */
+  function release(aim, power, opts = {}) {
     if (s.over || s.puck.owner !== me) return null;
     const from = blade(me);
     const assist = level.assist;
     let isShot = false;
     let target = null;
+    let zone = null;
+    let shotPoint = null;
 
-    // Vers le but ? On garde la visée de l'enfant, en la ramenant entre les poteaux si elle est proche.
-    const f = fwd(aim);
-    if (f.z > 0.05 && from.z < GOAL_Z) {
-      const xCross = from.x + (f.x / f.z) * (GOAL_Z - from.z);
-      const tol = POST + Math.tan(assist) * (GOAL_Z - from.z);
-      if (Math.abs(xCross) < tol) {
-        isShot = true;
-        aim = angleTo(from, { x: clamp(xCross, -0.75, 0.75), z: GOAL_Z });
+    if (opts.zone && goalie) {
+      zone = zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie)).find((z) => z.id === opts.zone);
+    } else {
+      // Vers le but ? Petite assistance : on ramène le tir vers la cible ouverte la plus proche.
+      const f = fwd(aim);
+      if (f.z > 0.05 && from.z < GOAL_Z) {
+        const xCross = from.x + (f.x / f.z) * (GOAL_Z - from.z);
+        const tol = POST + Math.tan(assist) * (GOAL_Z - from.z);
+        if (Math.abs(xCross) < tol) {
+          isShot = true;
+          const snap = 0.35 + assist * 2; // rayon de l'aide : grand en U9, petit en U13
+          const open = goalie ? zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie)).filter((z) => z.open) : [];
+          const near = open.sort((a, b) => Math.abs(a.x - xCross) - Math.abs(b.x - xCross))[0];
+          if (near && Math.abs(near.x - xCross) < snap) zone = near;
+          else shotPoint = { x: clamp(xCross, -0.75, 0.75), y: 0.15 };
+        }
       }
     }
+    if (zone) {
+      isShot = true;
+      // Petite imprécision, plus grande quand on tire très fort.
+      const err = 0.05 + 0.07 * clamp(power, 0, 1);
+      shotPoint = { x: zone.x + (rand() - 0.5) * 2 * err, y: clamp(zone.y + (rand() - 0.5) * 2 * err, 0.05, 1.15) };
+    }
+    if (shotPoint) aim = angleTo(from, { x: shotPoint.x, z: GOAL_Z });
     // Sinon, vers le coéquipier le plus proche de la direction choisie.
     if (!isShot) {
       let best = null;
@@ -740,6 +872,13 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     if (backhand) {
       speed *= 0.7;
       aim += (rand() - 0.5) * 0.14;
+    }
+    let vy = 0;
+    const lifted = !isShot && !!opts.lifted;
+    if (isShot && shotPoint) vy = liftFor(dist(from, { x: shotPoint.x, z: GOAL_Z }), speed, shotPoint.y);
+    else if (lifted) {
+      speed *= 0.85;
+      vy = 3; // passe levée : le palet monte d'environ 45 cm puis retombe
     }
 
     // Analyse de la décision au moment où elle est prise.
@@ -766,13 +905,18 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       chosen,
       grade: gradeDecision(chosen, ev.best),
       snapshot,
+      zone: zone ? zone.id : null,
+      zoneLabel: zone ? zone.label : null,
+      zoneOpen: zone ? zone.open : null,
+      goalieButterfly: goalie ? !!goalie.butterfly : false,
+      lifted,
     };
     s.releases.push(info);
     if (!isShot && target) s.lastPassFromMe = target.num;
-    launch(me, aim, speed, me, isShot);
-    emit(isShot ? 'shot' : 'pass', { backhand });
+    launch(me, aim, speed, me, isShot, vy);
+    emit(isShot ? 'shot' : 'pass', { backhand, lifted });
     return info;
   }
 
-  return { state: s, step, release, blade };
+  return { state: s, step, release, blade, zones: () => (goalie ? zoneStatus(goalie, blade(me), goalieReach(goalie, blade(me), level), actors.filter((a) => !a.team && !a.goalie)) : []) };
 }

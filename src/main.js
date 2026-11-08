@@ -380,11 +380,112 @@ function tryFlick(p) {
   const aim = pt ? angleTo(me, pt) : me.yaw + me.head;
 
   if (G.radar == null) G.radar = allSeen();
-  const info = G.sim.release(aim, power);
+  // Swipe long (plus de 40 % de la hauteur de l'écran) : passe levée, au-dessus des crosses.
+  const lifted = p.y0 - e.y > 0.4 * H;
+  const info = G.sim.release(aim, power, { lifted });
   if (!info) return false;
   sfx.puck();
-  if (info.backhand) setBanner('Revers !', 'info');
+  if (info.isShot && info.zone) setBanner(`🎯 Tir ${info.zoneLabel} !`, 'info');
+  else if (info.lifted) setBanner('🪂 Passe levée !', 'info');
+  else if (info.backhand) setBanner('Revers !', 'info');
   return true;
+}
+
+// ---------- cage et cibles de tir ----------
+// Quand on a le palet assez près du but, une vue fixe de la cage apparaît avec 5 cibles :
+// vertes si elles sont libres, rouges si le gardien les couvre (selon sa position et s'il est
+// debout ou en papillon). On touche une cible pour tirer dedans.
+const ZONE_PANEL_RANGE = 16; // m
+const NET = { x: 0, z: 26 };
+
+function shotPanelVisible() {
+  if (G.phase !== 'play' || !G.sim) return false;
+  const st = G.sim.state;
+  return st.puck.owner === st.me && !st.over && st.goalie && st.me.z < 25 && Math.hypot(st.me.x - NET.x, st.me.z - NET.z) < ZONE_PANEL_RANGE;
+}
+
+function drawShotPanel() {
+  const panel = $('#shot-panel');
+  const show = shotPanelVisible();
+  panel.hidden = !show;
+  if (!show) return;
+  const zones = G.sim.zones();
+  const g = G.sim.state.goalie;
+  const cv = $('#shot-canvas');
+  const W = cv.clientWidth;
+  const H = cv.clientHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (cv.width !== W * dpr) {
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+  }
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, W, H);
+  // Vue de face de la cage : 1,83 m × 1,22 m ; la gauche du tireur (x positif) est à gauche.
+  const sc = Math.min((W - 16) / 1.83, (H - 14) / 1.22);
+  const cx = W / 2;
+  const by = H - 6;
+  const X = (x) => cx - x * sc;
+  const Y = (y) => by - y * sc;
+  c.fillStyle = 'rgba(255,255,255,0.92)';
+  c.fillRect(X(0.915), Y(1.22), 1.83 * sc, 1.22 * sc);
+  c.strokeStyle = 'rgba(0,0,0,0.12)';
+  c.lineWidth = 1;
+  for (let i = 1; i < 8; i++) {
+    c.beginPath();
+    c.moveTo(X(0.915) + (i * 1.83 * sc) / 8, Y(1.22));
+    c.lineTo(X(0.915) + (i * 1.83 * sc) / 8, by);
+    c.stroke();
+  }
+  c.strokeStyle = '#d7263d';
+  c.lineWidth = 5;
+  c.strokeRect(X(0.915), Y(1.22), 1.83 * sc, 1.22 * sc);
+  // Gardien (dessiné à l'intérieur du cadre de la cage)
+  c.save();
+  c.beginPath();
+  c.rect(X(0.915), Y(1.22), 1.83 * sc, 1.22 * sc);
+  c.clip();
+  c.fillStyle = '#e5484d';
+  const gx = X(g.x);
+  if (g.butterfly) {
+    c.fillRect(gx - 0.86 * sc, Y(0.3), 1.72 * sc, 0.3 * sc); // jambières au sol
+    c.fillRect(gx - 0.32 * sc, Y(0.86), 0.64 * sc, 0.56 * sc); // corps
+    c.fillRect(gx - 0.56 * sc, Y(0.78), 0.24 * sc, 0.3 * sc); // mitaine
+    c.fillRect(gx + 0.32 * sc, Y(0.78), 0.24 * sc, 0.3 * sc); // bouclier
+  } else {
+    c.fillRect(gx - 0.4 * sc, Y(0.22), 0.28 * sc, 0.22 * sc); // jambière
+    c.fillRect(gx + 0.12 * sc, Y(0.22), 0.28 * sc, 0.22 * sc); // jambière
+    c.fillRect(gx - 0.42 * sc, Y(1.05), 0.84 * sc, 0.83 * sc); // corps
+    c.fillRect(gx - 0.6 * sc, Y(0.92), 0.18 * sc, 0.4 * sc); // mitaine
+    c.fillRect(gx + 0.42 * sc, Y(0.92), 0.18 * sc, 0.4 * sc); // bouclier
+  }
+  c.fillStyle = '#f1c27d';
+  c.beginPath();
+  c.arc(gx, Y(g.butterfly ? 0.98 : 1.15), 0.1 * sc, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+  // Cibles (boutons placés sur la cage)
+  for (const z of zones) {
+    const b = panel.querySelector(`[data-zone="${z.id}"]`);
+    b.style.left = `${X(z.x)}px`;
+    b.style.top = `${Y(z.y)}px`;
+    b.classList.toggle('open', z.open);
+  }
+}
+
+for (const b of document.querySelectorAll('.zone-btn')) {
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!shotPanelVisible()) return;
+    if (G.radar == null) G.radar = allSeen();
+    const info = G.sim.release(0, 0.75, { zone: b.dataset.zone });
+    if (!info) return;
+    sfx.puck();
+    setBanner(`🎯 Tir ${info.zoneLabel} !`, 'info');
+    $('#shot-panel').hidden = true;
+  });
 }
 
 // Clavier (pratique pour tester sur ordinateur) : flèches, B pour freiner, espace pour tirer tout droit.
@@ -587,7 +688,7 @@ function showResult() {
   $('#chip-decision').classList.toggle('on', decision);
   $('#chip-goal').classList.toggle('on', goal);
 
-  const [outcome, tip] = outcomeText(st);
+  let [outcome, tip] = outcomeText(st);
   $('#res-outcome').textContent = outcome + (st.tooHard ? ' Ta passe était trop forte pour être contrôlée.' : '');
 
   const best = $('#res-best');
@@ -603,6 +704,13 @@ function showResult() {
     }
   } else {
     $('#res-decision').textContent = '❌ Tu n’as ni passé ni tiré.';
+  }
+  if (rel && rel.isShot && rel.zone) {
+    const g = rel.goalieButterfly ? 'Le gardien était en papillon (au sol)' : 'Le gardien était debout';
+    if (!rel.zoneOpen) tip = `${g} et couvrait la zone « ${rel.zoneLabel} » : vise une cible verte.`;
+    else if (st.over.type === 'goal') tip = `${g} : la zone « ${rel.zoneLabel} » était libre. Bien visé !`;
+    else if (st.over.type === 'save') tip = `La zone « ${rel.zoneLabel} » était libre, mais le gardien a eu le temps de se déplacer : tire plus vite, dès que la cible est verte.`;
+    else if (st.over.type === 'wide') tip = `La zone « ${rel.zoneLabel} » était libre, mais le tir est parti à côté : tire un peu moins fort pour être plus précis.`;
   }
   if (tip && best.hidden) {
     best.hidden = false;
@@ -687,6 +795,8 @@ function syncRender() {
   st.actors.forEach((a, i) => {
     G.meshes[i].setPos(a.x, a.z);
     G.meshes[i].mesh.rotation.y = a.face;
+    // Gardien en papillon : plus bas et plus large.
+    if (a.goalie) G.meshes[i].mesh.scale.set(a.butterfly ? 1.6 : 1.25, a.butterfly ? 0.62 : 1.05, 1.25);
   });
   const p = st.puck;
   const mine = p.owner === st.me;
@@ -718,6 +828,7 @@ function update(dt) {
     handleEvents();
     const st = G.sim.state;
     $('#timer-fill').style.transform = `scaleX(${clamp(1 - st.t / G.level.time, 0, 1)})`;
+    drawShotPanel();
     if (st.over && st.overT >= END_DELAY && !G.shown) showResult();
   }
   syncRender();

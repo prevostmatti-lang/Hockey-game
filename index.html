@@ -50,7 +50,8 @@
         <ul class="controls">
           <li><span class="ico">🕹️</span><span><b>Zone de déplacement</b> (moitié gauche à l’horizontale, moitié basse à la verticale) : c’est ton joystick. Pousse pour patiner (plus loin = plus vite), sur le côté pour tourner, vers le bas pour reculer.</span></li>
           <li><span class="ico">👀</span><span><b>Zone de vision</b> (l’autre moitié) : glisse pour regarder autour de toi. Lève le doigt et ton regard revient devant.</span></li>
-          <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort.</span></li>
+          <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort ; un swipe <b>long</b> fait une <b>passe levée</b> par-dessus les crosses.</span></li>
+          <li><span class="ico">🥅</span><span>Près du but, la <b>cage</b> apparaît en haut : touche une <b>cible verte</b> (trou libre) pour tirer dedans. Les cibles rouges sont couvertes par le gardien.</span></li>
           <li><span class="ico">🛑</span><span><b>Lâche l’écran</b> : tu glisses en ralentissant. <b>Tape deux fois</b> : tu freines.</span></li>
           <li><span class="ico">⬇️</span><span><b>Tire ton pouce vers le bas</b> pour patiner à reculons (utile en défense).</span></li>
         </ul>
@@ -120,6 +121,15 @@
       <div id="banner" hidden></div>
       <div id="ctl-hint">☝️ Garde ton doigt appuyé pour patiner</div>
       <div id="stick" hidden><div id="stick-knob"></div></div>
+      <div id="shot-panel" hidden>
+        <canvas id="shot-canvas"></canvas>
+        <button class="zone-btn" data-zone="HG" aria-label="Tirer en haut à gauche">🎯</button>
+        <button class="zone-btn" data-zone="HD" aria-label="Tirer en haut à droite">🎯</button>
+        <button class="zone-btn" data-zone="BG" aria-label="Tirer en bas à gauche">🎯</button>
+        <button class="zone-btn" data-zone="BD" aria-label="Tirer en bas à droite">🎯</button>
+        <button class="zone-btn" data-zone="J" aria-label="Tirer entre les jambières">🎯</button>
+        <p class="shot-help">Touche une cible verte pour tirer</p>
+      </div>
       <div id="zones" hidden>
         <div class="zone move"><span>🕹️ <b>Se déplacer</b><br />pousse : avancer (plus loin = plus vite)<br />sur le côté : tourner · vers le bas : reculer</span></div>
         <div class="zone look"><span>👀 <b>Regarder autour</b><br />glisse pour tourner la tête<br />swipe ↑ : passer ou tirer</span></div>

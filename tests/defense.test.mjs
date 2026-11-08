@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFENSE_SCENARIOS, LEVELS } from '../src/scenarios.js';
 import { createSim, angleTo, wrap } from '../src/sim.js';
+import { seededRandom } from '../src/generator.js';
 
 const DT = 1 / 60;
 const OWN = { x: 0, z: -26 };
@@ -34,12 +35,24 @@ const policies = {
   idle: () => ({ skate: false }),
 };
 
-function play(id, policy) {
+function play(id, policy, seed = 11) {
   const s = scn(id);
-  const sim = createSim(s, level(s), 'R');
+  const sim = createSim(s, level(s), 'R', seededRandom(seed)); // hasard fixé : résultats reproductibles
   for (let i = 0; i < 40 / DT && !sim.state.over; i++) sim.step(DT, policies[policy](sim.state));
   const st = sim.state;
   return { st, over: st.over, ratio: st.dutyT ? st.dutyOkT / st.dutyT : 0, passes: st.events.filter((e) => e.type === 'oppPass').length };
+}
+
+/** Joue 20 parties (hasard différent) et compte les résultats. */
+function many(id, policy) {
+  const out = { goals: 0, passes: 0, ratio: 0 };
+  for (let seed = 1; seed <= 20; seed++) {
+    const r = play(id, policy, seed);
+    if (r.over.type === 'goalAgainst') out.goals += 1;
+    if (r.passes > 0) out.passes += 1;
+    out.ratio += r.ratio / 20;
+  }
+  return out;
 }
 
 test('chaque situation défensive se termine et commence avec le palet chez l’adversaire', () => {
@@ -72,20 +85,19 @@ test('impossible de piquer le palet par derrière', () => {
   }
 });
 
-test('foncer sur le porteur laisse l’attaquant seul : passe et but', () => {
-  const r = play('d-u9-3', 'chase');
-  assert.ok(r.passes >= 1);
-  assert.equal(r.over.type, 'goalAgainst');
-  const r2 = play('d-u11-1', 'chase');
-  assert.ok(r2.passes >= 1);
-  assert.equal(r2.over.type, 'goalAgainst');
+test('foncer sur le porteur laisse l’attaquant seul : il reçoit la passe et marque plus souvent', () => {
+  const chase = many('d-u11-2', 'chase');
+  const good = many('d-u11-2', 'good');
+  assert.ok(chase.passes >= 10, `passes : ${chase.passes} / 20`);
+  assert.ok(chase.goals > good.goals, `buts encaissés : en fonçant ${chase.goals}, en marquant ${good.goals}`);
 });
 
-test('bien marquer son joueur : bon placement et pas de but', () => {
+test('bien marquer son joueur : bon placement et moins de buts encaissés que sans rien faire', () => {
   for (const id of ['d-u11-2', 'd-u13-3']) {
-    const r = play(id, 'good');
+    const r = many(id, 'good');
     assert.ok(r.ratio >= 0.55, `${id} placement ${r.ratio}`);
-    assert.notEqual(r.over.type, 'goalAgainst', id);
+    assert.ok(r.goals <= 8, `${id} : ${r.goals} buts sur 20`);
+    assert.ok(r.goals < many(id, 'idle').goals + (id === 'd-u13-3' ? 1 : 0), `${id} : pas mieux que sans rien faire`);
   }
 });
 

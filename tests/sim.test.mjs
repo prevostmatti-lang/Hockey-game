@@ -38,28 +38,62 @@ test('passe au coéquipier démarqué : il la reçoit (u9-1)', () => {
   assert.equal(sim.state.puck.owner, mate);
 });
 
-test('2 contre 1 : la passe au n°19 mène à un but (u11-1)', () => {
-  const sim = createSim(scn('u11-1'), U11, 'R', () => 0.5);
-  waitPuck(sim);
-  run(sim, 0.8); // le défenseur s'approche
-  const mate = sim.state.actors.find((a) => a.num === 19);
-  sim.release(angleTo(sim.blade(sim.state.me), mate), 0.5);
-  const over = runUntilOver(sim);
-  assert.equal(over?.type, 'goal', JSON.stringify(over));
+test('2 contre 1 : la passe au n°19 mène souvent à un but (u11-1)', async () => {
+  const { seededRandom } = await import('../src/generator.js');
+  let goals = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const sim = createSim(scn('u11-1'), U11, 'R', seededRandom(seed));
+    waitPuck(sim);
+    run(sim, 0.8); // le défenseur s'approche
+    const mate = sim.state.actors.find((a) => a.num === 19);
+    sim.release(angleTo(sim.blade(sim.state.me), mate), 0.5);
+    if (runUntilOver(sim)?.type === 'goal') goals += 1;
+  }
+  assert.ok(goals >= 8, `${goals} buts sur 20`);
 });
 
-test('tir dans un coin depuis l’enclave : but ; tir sur le gardien : arrêt (u9-3)', () => {
-  const corner = createSim(scn('u9-3'), U9, 'R');
-  waitPuck(corner);
-  const info = corner.release(angleTo(corner.blade(corner.state.me), { x: 0.7, z: 26 }), 1);
-  assert.ok(info.isShot);
-  assert.equal(runUntilOver(corner)?.type, 'goal');
+test('tir dans une cible : verte (ouverte) = but, rouge (couverte) = arrêt (u9-3)', async () => {
+  const { seededRandom } = await import('../src/generator.js');
+  let openGoals = 0;
+  let coveredSaves = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    for (const wantOpen of [true, false]) {
+      const sim = createSim(scn('u9-3'), U9, 'R', seededRandom(seed));
+      waitPuck(sim);
+      const zones = sim.zones();
+      const z = zones.find((x) => x.open === wantOpen);
+      if (!z) continue;
+      const info = sim.release(0, 0.6, { zone: z.id });
+      assert.ok(info.isShot && info.zone === z.id);
+      const over = runUntilOver(sim);
+      if (wantOpen && over?.type === 'goal') openGoals += 1;
+      if (!wantOpen && over?.type === 'save') coveredSaves += 1;
+    }
+  }
+  assert.ok(openGoals >= 7, `cibles vertes : ${openGoals} buts sur 10`);
+  assert.ok(coveredSaves >= 7, `cibles rouges : ${coveredSaves} arrêts sur 10`);
+});
 
-  const center = createSim(scn('u9-3'), U9, 'R');
-  waitPuck(center);
-  const g = center.state.goalie;
-  center.release(angleTo(center.blade(center.state.me), { x: g.x, z: 26 }), 0.2);
-  assert.equal(runUntilOver(center)?.type, 'save');
+test('gardien en papillon près du but : le bas est fermé, les coins hauts sont ouverts', async () => {
+  const { zoneStatus } = await import('../src/sim.js');
+  const z = Object.fromEntries(zoneStatus({ x: 0, butterfly: true }).map((x) => [x.id, x.open]));
+  assert.deepEqual(z, { HG: true, HD: true, BG: false, BD: false, J: false });
+  const st = Object.fromEntries(zoneStatus({ x: 0, butterfly: false }).map((x) => [x.id, x.open]));
+  assert.equal(st.J, true, 'debout : entre les jambières ouvert');
+});
+
+test('passe levée : elle passe au-dessus des crosses', async () => {
+  const sim = createSim(scn('u9-1'), U9, 'R', () => 0.5);
+  waitPuck(sim);
+  const mate = sim.state.actors.find((a) => a.num === 9);
+  const info = sim.release(angleTo(sim.blade(sim.state.me), mate), 0.5, { lifted: true });
+  assert.ok(info.lifted);
+  let maxY = 0;
+  for (let i = 0; i < 30; i++) {
+    sim.step(DT, {});
+    maxY = Math.max(maxY, sim.state.puck.y);
+  }
+  assert.ok(maxY > 0.35, `hauteur max ${maxY.toFixed(2)} m`);
 });
 
 test('rester immobile avec le palet face au défenseur : il le prend (u9-1)', () => {

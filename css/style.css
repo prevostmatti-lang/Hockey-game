@@ -865,3 +865,69 @@ p {
   padding: 8px 12px;
   margin: 0 12px;
 }
+
+/* Cage fixe avec les cibles de tir */
+#shot-panel {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 70px);
+  right: max(12px, env(safe-area-inset-right));
+  width: min(240px, 34vw);
+  height: calc(min(240px, 34vw) * 0.72);
+  pointer-events: auto;
+  background: rgba(11, 37, 69, 0.55);
+  border-radius: 14px;
+  touch-action: none;
+}
+#shot-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.zone-btn {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: rgba(229, 72, 77, 0.85);
+  color: #fff;
+  font-size: 16px;
+  padding: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.zone-btn.open {
+  background: rgba(31, 163, 92, 0.95);
+  box-shadow: 0 0 0 4px rgba(31, 163, 92, 0.35);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 9px rgba(31, 163, 92, 0.15);
+  }
+}
+.shot-help {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -26px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+/* Portrait : la cage en haut, centrée, plus grande */
+@media (orientation: portrait) {
+  #shot-panel {
+    top: calc(max(10px, env(safe-area-inset-top)) + 140px);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(260px, 66vw);
+    height: calc(min(260px, 66vw) * 0.72);
+  }
+}
