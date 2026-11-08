@@ -131,27 +131,85 @@ function buildRink(scene) {
   addLogos(scene);
 }
 
-/** Logo du club sur les bandes (côtés et fonds), tourné vers la glace. */
+/**
+ * Logo du club intégré comme dans une vraie patinoire :
+ *  - peint sous la glace au centre (légèrement fondu, sous les lignes) ;
+ *  - sur des panneaux aux couleurs du club, collés aux bandes (côtés et derrière les buts).
+ */
 function addLogos(scene) {
-  const tex = new THREE.TextureLoader().load(new URL('../assets/logo-club.png', import.meta.url).href);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 });
-  const geo = new THREE.PlaneGeometry(0.95, 0.95);
-  const place = (x, z, rotY) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, 0.62, z);
+  const img = new Image();
+  img.src = new URL('../assets/logo-club-detoure.png', import.meta.url).href;
+
+  // --- Logo sous la glace, au centre
+  const iceTex = new THREE.Texture(img);
+  iceTex.colorSpace = THREE.SRGBColorSpace;
+  const iceLogo = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.6, 4.6),
+    new THREE.MeshBasicMaterial({ map: iceTex, transparent: true, opacity: 0.55, depthWrite: false }),
+  );
+  iceLogo.rotation.x = -Math.PI / 2;
+  iceLogo.position.y = 0.002; // sous les lignes (0,004)
+  scene.add(iceLogo);
+
+  // --- Panneaux sur les bandes : bandeau bleu nuit, liseré flamme, logos répétés
+  const panelTex = (len) => {
+    const c = document.createElement('canvas');
+    const H = 128;
+    c.width = Math.round(H * (len / 0.7));
+    c.height = H;
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    const paint = () => {
+      const g = c.getContext('2d');
+      const grad = g.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#0b2545');
+      grad.addColorStop(1, '#13315c');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, c.width, H);
+      const fire = g.createLinearGradient(0, 0, c.width, 0);
+      fire.addColorStop(0, '#ffd23f');
+      fire.addColorStop(0.5, '#f07a00');
+      fire.addColorStop(1, '#e5484d');
+      g.fillStyle = fire;
+      g.fillRect(0, H - 14, c.width, 8);
+      g.fillStyle = 'rgba(255,255,255,0.15)';
+      g.fillRect(0, 6, c.width, 3);
+      if (img.complete && img.naturalWidth) {
+        const sz = H * 0.92;
+        const step = sz * 2.6;
+        for (let x = (c.width % step) / 2 + (step - sz) / 2; x + sz <= c.width + 1; x += step) g.drawImage(img, x, (H - sz) / 2 - 4, sz, sz);
+      }
+      t.needsUpdate = true;
+    };
+    paint();
+    img.addEventListener('load', paint);
+    return t;
+  };
+  img.addEventListener('load', () => {
+    iceTex.needsUpdate = true;
+  });
+
+  const H = 0.7;
+  const place = (len, x, z, rotY) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(len, H), new THREE.MeshStandardMaterial({ map: panelTex(len), roughness: 0.55 }));
+    m.position.set(x, 0.21 + H / 2 + 0.03, z);
     m.rotation.y = rotY;
     scene.add(m);
   };
-  for (const z of [-17, -8, 0, 8, 17]) {
-    place(-W / 2 + 0.005, z, Math.PI / 2); // côté x négatif, regarde vers +x
-    place(W / 2 - 0.005, z, -Math.PI / 2); // côté x positif, regarde vers -x
+  // Côtés : deux panneaux par côté, dans les zones droites de la bande (|z| < 21,5 m)
+  for (const [z0, z1] of [
+    [-19, -9],
+    [9, 19],
+  ]) {
+    const len = z1 - z0;
+    const zc = (z0 + z1) / 2;
+    place(len, -W / 2 + 0.006, zc, Math.PI / 2);
+    place(len, W / 2 - 0.006, zc, -Math.PI / 2);
   }
-  for (const x of [-3, 3]) {
-    place(x, -L / 2 + 0.005, 0); // fond z négatif, regarde vers +z
-    place(x, L / 2 - 0.005, Math.PI); // fond z positif, regarde vers -z
-  }
+  // Derrière les buts (partie droite du fond, |x| < 4,5 m)
+  place(8.4, 0, -L / 2 + 0.006, 0);
+  place(8.4, 0, L / 2 - 0.006, Math.PI);
 }
 
 /** But. `dir` = +1 pour le but adverse (z = +26), ouvert vers -z. Renvoie la zone cliquable. */
