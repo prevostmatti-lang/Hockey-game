@@ -374,18 +374,18 @@ export function createWorld(canvas) {
     const h = window.innerHeight;
     renderer.setSize(w, h, false);
     const aspect = w / h;
-    // Le jeu se joue en paysage, avec une vue large (115° en largeur) pour voir le jeu autour de soi.
+    // Le jeu se joue en paysage, avec une vue large, type « fish-eye » (130° en largeur) pour voir le jeu autour de soi.
     // En portrait (si l'appareil est tenu droit), on se limite à 60°.
-    const target = (aspect < 1 ? 60 : 115) * DEG;
+    const target = (aspect < 1 ? 60 : 130) * DEG;
     let v = 2 * Math.atan(Math.tan(target / 2) / aspect);
-    v = Math.min(100 * DEG, Math.max(40 * DEG, v));
+    v = Math.min(115 * DEG, Math.max(40 * DEG, v));
     camera.fov = v / DEG;
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
     hfov = 2 * Math.atan(Math.tan(v / 2) * aspect);
     // Regard incliné juste assez pour garder la palette et le palet dans le bas de l'écran,
     // quel que soit le format (téléphone allongé ou tablette).
-    const pitch = Math.min(35 * DEG, Math.max(10 * DEG, 63 * DEG - v / 2));
+    const pitch = Math.min(35 * DEG, Math.max(18 * DEG, 63 * DEG - v / 2));
     lookDrop = Math.tan(pitch) * 10;
   }
   resize();
