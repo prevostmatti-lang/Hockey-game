@@ -23,7 +23,7 @@ const ME_MAX = 6.5;
 const ME_MAX_PUCK = 5.6;
 const ME_BACK = 3.8; // patinage à reculons
 const GLIDE = 2.6; // ralentissement quand on glisse sans pousser (m/s²) : ~2 s pour s'arrêter
-const TURN_MAX = 4.2; // vitesse de rotation au maximum (rad/s) : demi-tour en moins d'une seconde
+const TURN_MAX = 3.0; // vitesse de rotation au maximum (rad/s) : demi-tour en un peu plus d'une seconde
 const TURN_CURVE = 3; // courbure exponentielle de la réponse au pouce
 
 /** Réponse exponentielle : petit écart du pouce = rotation douce ; pouce à 90° = rotation très rapide. */
@@ -267,7 +267,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     }
     // On peut tourner même à l'arrêt (pivot sur les patins), pour faire demi-tour facilement.
     me.yaw = wrap(me.yaw - turnRate(clamp(input.turn || 0, -1, 1)) * dt);
-    // Regard : angle donné directement (pouce ramené vers l'arrière) ou bouton/clavier (-1, 0, 1).
+    // La tête suit le corps (plus de regard séparé) ; on garde la possibilité pour plus tard.
     const headTarget = input.headAngle != null ? clamp(input.headAngle, -2.9, 2.9) : clamp(input.head || 0, -1, 1) * 2.3;
     me.head += (headTarget - me.head) * Math.min(1, dt * 6);
     const f = fwd(me.yaw);

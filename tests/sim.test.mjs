@@ -106,7 +106,7 @@ test('autant de joueurs droitiers que gauchers dans chaque équipe et sur la gla
   }
 });
 
-test('rotation exponentielle : douce au début, demi-tour rapide pouce à fond', async () => {
+test('rotation exponentielle : douce au début, demi-tour en un peu plus d’une seconde pouce à fond', async () => {
   const { turnRate } = await import('../src/sim.js');
   assert.ok(turnRate(0.3) < 0.5, 'petit écart = rotation douce');
   assert.ok(turnRate(0.6) < turnRate(1) / 2.5, 'la rotation accélère fortement vers 90°');
@@ -117,5 +117,5 @@ test('rotation exponentielle : douce au début, demi-tour rapide pouce à fond',
     sim.step(DT, { skate: true, turn: 1 });
     t += DT;
   }
-  assert.ok(t < 1, `demi-tour en ${t.toFixed(2)} s`);
+  assert.ok(t < 1.4, `demi-tour en ${t.toFixed(2)} s`);
 });

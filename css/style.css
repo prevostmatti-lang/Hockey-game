@@ -404,9 +404,6 @@ p {
   font-size: 22px;
   color: var(--navy);
 }
-#stick[data-zone='look'] #stick-knob {
-  background: rgba(255, 210, 63, 0.95);
-}
 #stick[data-zone='back'] #stick-knob {
   background: rgba(240, 122, 0, 0.95);
 }

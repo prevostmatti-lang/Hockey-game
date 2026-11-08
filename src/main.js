@@ -1,7 +1,7 @@
 // « Tête haute ! » : le joueur patine en vue première personne, passe et tire d'un swipe.
 //   - doigt appuyé : patiner ; le glisser à gauche ou à droite : tourner
 //   - swipe vers le haut : passe ou tir, dans la direction du swipe, d'autant plus fort que le swipe est rapide
-//   - pouce sur le côté : tourner selon l'angle ; ramené vers l'arrière : regarder derrière ; tout en bas : reculer
+//   - pouce sur le côté : tourner selon l'angle ; tiré vers le bas : reculer
 //   - lâcher l'écran : glisser ; double tap : freiner
 import { LEVELS, SCENARIOS, DEFENSE_SCENARIOS } from './scenarios.js';
 import { explain, describeOption } from './evaluate.js';
@@ -155,7 +155,7 @@ function showIntro() {
     $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">⬇ Tire ton pouce tout droit vers le bas pour patiner à reculons. Double tap pour freiner.</span>`;
     $('#intro-goal').textContent = '🛡️ Objectif : récupérer le palet sans encaisser de but.';
   } else {
-    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, ramène ton pouce vers l’arrière pour regarder où sont tes coéquipiers 👀</b>`;
+    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, tourne-toi pour repérer où sont tes coéquipiers 👀</b>`;
     $('#intro-goal').textContent = '🎯 Objectif : marquer un but avec ton équipe.';
   }
   showScreen('#intro');
@@ -168,7 +168,7 @@ function beginPlay() {
   $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
   $('#hud-step').textContent = G.session ? '⏱️' : `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
-  $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · pouce en arrière : regarder derrière · tout en bas : reculer' : '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner · pouce en arrière : regarder derrière';
+  $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner · pouce vers le bas : reculer' : '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner';
   showScreen(null);
   sfx.whistle();
   if (G.mode === 'defense') {
@@ -183,7 +183,6 @@ function beginPlay() {
 // ---------- contrôles ----------
 // Le pouce fonctionne comme un joystick autour de l'endroit où il s'est posé :
 //   - vers le haut ou sur le côté (jusqu'à ~100°) : on patine et on tourne, d'autant plus que l'angle est grand ;
-//   - ramené vers l'arrière, à gauche ou à droite : on regarde derrière soi de ce côté (sans pousser) ;
 //   - tiré tout droit vers le bas : on patine à reculons ;
 //   - lever le doigt : on glisse en ralentissant ; double tap : on freine.
 const DEG = Math.PI / 180;
@@ -211,9 +210,8 @@ function readStick(sp) {
   const r = Math.hypot(dx, dy);
   if (r < DEAD) return { zone: 'push', theta: 0, dx, dy };
   const theta = Math.atan2(dx, -dy);
-  const a = Math.abs(theta);
-  if (a <= 100 * DEG) return { zone: 'push', theta, dx, dy };
-  if (a < 160 * DEG) return { zone: 'look', theta, dx, dy };
+  // Jusqu'à 135° : on avance et on tourne ; au-delà (pouce tiré vers le bas) : on recule.
+  if (Math.abs(theta) <= 135 * DEG) return { zone: 'push', theta, dx, dy };
   return { zone: 'back', theta, dx, dy };
 }
 
@@ -230,8 +228,8 @@ function updateInput() {
   if (keys.has('ArrowRight')) turn = 1;
   input.turn = turn;
   // Regarder derrière : la vue suit l'angle du pouce (à droite = regard à droite).
-  input.headAngle = st && st.zone === 'look' ? -st.theta : null;
-  input.head = keys.has('q') || keys.has('a') ? 1 : keys.has('e') ? -1 : 0;
+  input.headAngle = null;
+  input.head = 0;
   showStick(sp, st);
 }
 
@@ -249,7 +247,7 @@ function showStick(sp, st) {
   const k = Math.min(1, 46 / r);
   $('#stick-knob').style.transform = `translate(${st.dx * k}px, ${st.dy * k}px)`;
   el.dataset.zone = st.zone;
-  $('#stick-knob').textContent = st.zone === 'look' ? '👀' : st.zone === 'back' ? '⬇' : '';
+  $('#stick-knob').textContent = st.zone === 'back' ? '⬇' : '';
 }
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -355,7 +353,7 @@ function tryFlick(p) {
   return true;
 }
 
-// Clavier (pratique pour tester sur ordinateur) : flèches, Q/E pour regarder derrière, B pour freiner, espace pour tirer tout droit.
+// Clavier (pratique pour tester sur ordinateur) : flèches, B pour freiner, espace pour tirer tout droit.
 window.addEventListener('keydown', (e) => {
   if (G.phase !== 'play') return;
   keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
@@ -523,7 +521,7 @@ function showDefenseResult() {
   $('#res-backhand').hidden = true;
   $('#res-radar').textContent = radar
     ? '👀 Tête haute ! Tu avais repéré tous les attaquants.'
-    : '👀 Repère tous les attaquants dès le début : ramène ton pouce vers l’arrière pour regarder derrière toi.';
+    : '👀 Repère tous les attaquants dès le début : tourne-toi pour les voir.';
   $('#res-radar').className = radar ? 'ok' : 'warn';
   $('#res-lesson').textContent = st.scn.lesson;
   $('#legend-best').textContent = '◯ bonne place';
@@ -583,7 +581,7 @@ function showResult() {
   }
   $('#res-radar').textContent = radar
     ? '👀 Tête haute ! Tu avais repéré tous tes coéquipiers avant de jouer le palet.'
-    : '👀 Avant de jouer le palet, ramène ton pouce vers l’arrière, à gauche ou à droite, pour repérer tous tes coéquipiers.';
+    : '👀 Avant de jouer le palet, tourne-toi pour repérer tous tes coéquipiers.';
   $('#res-radar').className = radar ? 'ok' : 'warn';
   $('#res-lesson').textContent = st.scn.lesson;
   $('#btn-next').textContent = G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';

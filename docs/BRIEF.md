@@ -4,7 +4,7 @@
 - **Public** : les joueurs de 6 à 12 ans **d'un club** (U9, U11, U13).
 - **Supports** : **téléphone et tablette** en priorité. C'est une appli web installable, utilisable hors ligne.
 - **Pas d'espace coach** : l'enfant joue seul et sa progression reste sur l'appareil.
-- **Vue première personne et contrôle direct** : l'enfant patine lui-même. Le pouce fonctionne comme un joystick : doigt appuyé pour avancer, pouce sur le côté pour tourner (selon l'angle), pouce ramené vers l'arrière pour regarder derrière soi. Swipe vers le haut pour passer ou tirer (direction et force), même en patinant.
+- **Vue première personne et contrôle direct** : l'enfant patine lui-même. Le pouce fonctionne comme un joystick : doigt appuyé pour avancer, pouce sur le côté pour tourner (de plus en plus vite selon l'angle), pouce vers le bas pour reculer. Swipe vers le haut pour passer ou tirer (direction et force), même en patinant.
 - **Glisse et freinage** : quand on lâche l'écran, on continue de glisser en ralentissant ; un double tap freine. L'enfant comprend qu'on avance encore quand on ne pousse plus.
 - **Droitier ou gaucher** choisi au départ : le palet est porté du côté de la palette, et les passes en revers sont moins fortes et moins précises.
 
@@ -18,7 +18,7 @@
 | Conduite de palet | Pas dans cette version. Plus tard : défis hors écran avec balle et crosse (voir ci-dessous) |
 
 ## Boucle de jeu (une situation dure de 10 à 30 secondes)
-1. **Regarde** : un coéquipier va passer le palet. Avant qu'il arrive, l'enfant ramène son pouce vers l'arrière pour regarder par-dessus son épaule et repérer ses coéquipiers.
+1. **Regarde** : un coéquipier va passer le palet. Avant qu'il arrive, l'enfant se tourne pour repérer ses coéquipiers.
 2. **Joue** : il patine, passe ou tire en temps réel. Un défenseur vient au contact, d'autres marquent ou coupent les lignes de passe, et le gardien suit le palet. Les coéquipiers reçoivent, tirent ou redonnent le palet (une-deux).
 3. **Fin de l'action** : but, arrêt, tir à côté, interception, palet perdu ou temps écoulé.
 4. **Comprends** : étoiles, explication en une phrase, conseil, et un ralenti vu du dessus (trajet du joueur, trajet du palet, meilleure option au moment du choix).

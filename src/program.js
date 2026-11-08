@@ -3,7 +3,7 @@
 //
 // Chaque semaine : séance A (attaque), séance B (défense), séance C (mixte : on change de rôle,
 // ce qui travaille la flexibilité cognitive). Chaque séance suit le même déroulé de 15 minutes :
-//   1. Coup d'œil (2 min)      : regarder derrière soi et repérer vite (prise d'information, « scanning »)
+//   1. Coup d'œil (2 min)      : tourner la tête et repérer vite (prise d'information, « scanning »)
 //   2. Situations de jeu (9 min) : jouer et décider en temps réel, dans des situations toujours renouvelées
 //   3. Lecture (3 min)          : « arrêt sur image » (décider vite, savoir NE PAS faire la passe = inhibition)
 //                                 ou « mémoire de glace » (mémoire de travail)
