@@ -168,7 +168,8 @@ function beginPlay() {
   $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
   $('#hud-step').textContent = G.session ? '⏱️' : `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
-  $('#ctl-hint').textContent = G.mode === 'defense' ? '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner · pouce vers le bas : reculer' : '☝️ Doigt appuyé : avancer · pouce sur le côté : tourner';
+  $('#ctl-hint').textContent =
+    '☝️ 1er doigt : direction et vitesse (vers le bas : reculer) · ✌️ 2e doigt : regarder autour · swipe ↑ : passer ou tirer';
   showScreen(null);
   sfx.whistle();
   if (G.mode === 'defense') {
@@ -185,9 +186,17 @@ function beginPlay() {
 //   - vers le haut ou sur le côté (jusqu'à ~100°) : on patine et on tourne, d'autant plus que l'angle est grand ;
 //   - tiré tout droit vers le bas : on patine à reculons ;
 //   - lever le doigt : on glisse en ralentissant ; double tap : on freine.
+// Le 1er doigt posé (n'importe où) est ce joystick : direction, et vitesse selon la distance du pouce.
+// Un 2e doigt, posé pendant que le 1er est appuyé, sert à la VISION : il tourne la tête sans changer
+// la direction du patinage ; quand on le lève, le regard revient vers l'avant.
+// N'importe quel doigt peut faire la passe ou le tir d'un swipe rapide vers le haut.
+const LOOK_SENS = 1.3; // glisser sur toute la largeur de l'écran = tourner la tête de 1,3 × le champ de vision
+const FULL_SPEED_PX = 90; // pouce à 90 px du point de départ = vitesse maximale
+let lookId = null;
+let headLook = 0;
 const DEG = Math.PI / 180;
 const DEAD = 16; // px : petite zone morte autour du point de départ
-const input = { skate: false, back: false, brake: false, turn: 0, head: 0, headAngle: null };
+const input = { skate: false, back: false, brake: false, turn: 0, throttle: 1, head: 0, headAngle: null };
 const pointers = new Map();
 let skateId = null;
 let brakePulse = false;
@@ -197,6 +206,8 @@ const keys = new Set();
 function resetInput() {
   pointers.clear();
   skateId = null;
+  lookId = null;
+  headLook = 0;
   brakePulse = false;
   keys.clear();
   showStick(null);
@@ -228,7 +239,10 @@ function updateInput() {
   if (keys.has('ArrowRight')) turn = 1;
   input.turn = turn;
   // Regarder derrière : la vue suit l'angle du pouce (à droite = regard à droite).
-  input.headAngle = null;
+  // Vitesse : selon la distance du pouce au point de départ (au clavier : vitesse maximale).
+  input.throttle = sp ? clamp((Math.hypot(st.dx, st.dy) - DEAD) / (FULL_SPEED_PX - DEAD), 0.3, 1) : 1;
+  // Vision : tant que le 2e doigt est posé, la tête suit son glissement ; sinon elle revient devant.
+  input.headAngle = lookId != null ? headLook : null;
   input.head = 0;
   showStick(sp, st);
 }
@@ -254,8 +268,14 @@ canvas.addEventListener('pointerdown', (e) => {
   if (G.phase !== 'play') return;
   e.preventDefault();
   const now = performance.now();
-  pointers.set(e.pointerId, { x0: e.clientX, y0: e.clientY, t0: now, maxR: 0, samples: [{ t: now, x: e.clientX, y: e.clientY }] });
+  const p = { x0: e.clientX, y0: e.clientY, t0: now, maxR: 0, samples: [{ t: now, x: e.clientX, y: e.clientY }] };
+  pointers.set(e.pointerId, p);
+  // 1er doigt : déplacement ; 2e doigt : vision.
   if (skateId == null) skateId = e.pointerId;
+  else if (lookId == null) {
+    lookId = e.pointerId;
+    headLook = G.sim ? G.sim.state.me.head : 0;
+  }
   try {
     canvas.setPointerCapture(e.pointerId);
   } catch {
@@ -268,6 +288,11 @@ canvas.addEventListener('pointermove', (e) => {
   const p = pointers.get(e.pointerId);
   if (!p) return;
   const now = performance.now();
+  const prev = p.samples[p.samples.length - 1];
+  if (e.pointerId === lookId && G.phase === 'play') {
+    // Glisser à droite = regarder à droite (jusqu'à presque derrière soi).
+    headLook = clamp(headLook - ((e.clientX - prev.x) / canvas.clientWidth) * world.getHfov() * LOOK_SENS, -2.9, 2.9);
+  }
   p.samples.push({ t: now, x: e.clientX, y: e.clientY });
   p.maxR = Math.max(p.maxR, Math.hypot(e.clientX - p.x0, e.clientY - p.y0));
   while (p.samples.length > 2 && now - p.samples[0].t > 400) p.samples.shift();
@@ -291,17 +316,10 @@ function endPointer(e, isUp) {
       } else lastTap = now;
     }
   }
-  if (e.pointerId === skateId) {
-    // Si un autre doigt est posé, il prend le relais pour patiner.
-    const next = pointers.keys().next();
-    skateId = next.done ? null : next.value;
-    if (!next.done) {
-      const q = pointers.get(skateId);
-      const last = q.samples[q.samples.length - 1];
-      q.x0 = last.x;
-      q.y0 = last.y;
-    }
-  }
+  if (e.pointerId === lookId) lookId = null;
+  // Le doigt de déplacement levé : le prochain doigt posé reprendra le déplacement
+  // (le doigt de vision encore posé reste la vision).
+  if (e.pointerId === skateId) skateId = null;
 }
 canvas.addEventListener('pointerup', (e) => endPointer(e, true));
 canvas.addEventListener('pointercancel', (e) => endPointer(e, false));
@@ -912,6 +930,7 @@ $('#se-done').addEventListener('click', showProgram);
 $('#drill-quit').addEventListener('click', showProgram);
 for (const b of document.querySelectorAll('.hand-btn')) b.addEventListener('click', () => setHand(b.dataset.hand));
 $('#btn-hand').addEventListener('click', () => showScreen('#hand'));
+
 $('#btn-go').addEventListener('click', beginPlay);
 $('#btn-next').addEventListener('click', next);
 $('#btn-retry').addEventListener('click', showIntro);

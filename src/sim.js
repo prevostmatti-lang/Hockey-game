@@ -263,7 +263,12 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     if (input.brake) me.braking = true;
     if (input.skate || input.back) me.braking = false;
     if (input.back) me.speed = Math.max(-ME_BACK, me.speed - ME_ACCEL * dt);
-    else if (input.skate) me.speed = Math.min(max, me.speed + ME_ACCEL * dt);
+    else if (input.skate) {
+      // Vitesse visée selon la distance du pouce ; au-dessus, on ralentit en glissant.
+      const target = max * clamp(input.throttle ?? 1, 0.3, 1);
+      if (me.speed < target) me.speed = Math.min(target, me.speed + ME_ACCEL * dt);
+      else me.speed = Math.max(target, me.speed - GLIDE * dt);
+    }
     else {
       // Sans pousser, on glisse en ralentissant peu à peu ; après un double tap, on freine fort.
       const decel = me.braking ? BRAKE : GLIDE;

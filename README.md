@@ -18,11 +18,12 @@ Le pouce fonctionne comme un **joystick** autour de l'endroit où il s'est posé
 
 | Geste | Action |
 |---|---|
-| ☝️ Doigt appuyé | patiner vers l'avant |
-| ↗️ Pouce déplacé sur le côté | tourner ; la rotation augmente de façon exponentielle avec l'angle (demi-tour en un peu plus d'une seconde pouce à fond) |
-| ⬇️ Pouce tiré vers le bas | patiner à reculons, face au jeu |
-| ⬆️ Swipe vers le haut (même en patinant) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
-| Lâcher l'écran | on glisse en ralentissant peu à peu |
+| ☝️ 1er doigt posé (n'importe où) | joystick : pousser vers le haut pour patiner, plus loin = plus vite |
+| ↗️ 1er doigt sur le côté | tourner ; la rotation augmente de façon exponentielle avec l'angle |
+| ⬇️ 1er doigt vers le bas | patiner à reculons, face au jeu |
+| ✌️ 2e doigt (pendant que le 1er est posé) | regarder autour de soi sans changer de direction ; le regard revient devant quand on le lève |
+| ⬆️ Swipe rapide vers le haut (n'importe quel doigt) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
+| Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
 
 Une situation se joue ainsi :
