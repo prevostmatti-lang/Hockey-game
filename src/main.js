@@ -156,7 +156,8 @@ function showIntro() {
     $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">⬇ Tire ton pouce tout droit vers le bas pour patiner à reculons. Double tap pour freiner.</span>`;
     $('#intro-goal').textContent = '🛡️ Objectif : récupérer le palet sans encaisser de but.';
   } else {
-    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, tourne-toi pour repérer où sont tes coéquipiers 👀</b>`;
+    const gg = scn.giveGoTip ? `<br /><span class="hint">🔁 ${scn.giveGoTip}</span>` : '';
+    $('#intro-text').innerHTML = `Le n°${scn.passer.num} va te passer le palet.<br /><b>Avant qu’il arrive, tourne-toi pour repérer où sont tes coéquipiers 👀</b>${gg}`;
     $('#intro-goal').textContent = '🎯 Objectif : marquer un but avec ton équipe.';
   }
   showScreen('#intro');
@@ -581,6 +582,12 @@ function handleEvents() {
         setBanner('👉 À toi ! Swipe pour passer ou tirer', 'decide');
         speak('À toi !');
       }
+    } else if (ev.type === 'mateReceive' && st.scn.giveGo && st.lastPassFromMe === ev.num && !st.returned) {
+      sfx.puck();
+      setBanner('🔁 Démarque-toi : il peut te la rendre !', 'scan');
+    } else if (ev.type === 'pass' && ev.giveGo) {
+      sfx.puck();
+      setBanner('🔁 Une-deux !', 'decide');
     } else if (ev.type === 'mateReceive' || ev.type === 'mateShot') sfx.puck();
     else if (ev.type === 'over') onOver(ev.over);
   }
@@ -622,6 +629,7 @@ function outcomeText(st) {
   const n = o.num ?? '';
   switch (o.type) {
     case 'goal':
+      if (o.scorer && o.scorer.isMe && st.returned) return ['🚨 BUT sur une une-deux ! Bien démarqué.', ''];
       if (o.scorer && o.scorer.isMe) return ['🚨 BUT ! Tu as marqué.', ''];
       if (o.scorer && o.scorer.num === st.lastPassFromMe) return [`🚨 BUT du n°${o.scorer.num} sur ta passe !`, ''];
       return ['🚨 BUT de ton équipe !', ''];

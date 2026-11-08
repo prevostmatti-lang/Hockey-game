@@ -43,6 +43,8 @@ export const SCENARIOS = [
   // ---------- U9 ----------
   {
     id: 'u9-1',
+    giveGo: true, // une-deux : le coéquipier rend le palet si on se démarque
+    giveGoTip: 'Passe au n°9, puis fonce vers le but : s’il te voit seul, il te la rend !',
     level: 'U9',
     title: 'Le copain tout seul',
     me: { x: -4, z: 2 },
@@ -83,6 +85,8 @@ export const SCENARIOS = [
   // ---------- U11 ----------
   {
     id: 'u11-1',
+    giveGo: true, // une-deux : le coéquipier rend le palet si on se démarque
+    giveGoTip: 'Le défenseur vient sur toi : passe au n°19, puis démarque-toi pour la une-deux.',
     level: 'U11',
     title: '2 contre 1 : le défenseur vient sur toi',
     me: { x: -3, z: 10 },
@@ -138,6 +142,8 @@ export const SCENARIOS = [
   },
   {
     id: 'u13-2',
+    giveGo: true, // une-deux : le coéquipier rend le palet si on se démarque
+    giveGoTip: 'Passe, puis va dans l’espace libre : ton coéquipier peut te rendre le palet.',
     level: 'U13',
     title: 'Contre-attaque à 3 contre 2',
     me: { x: 0, z: 4 },

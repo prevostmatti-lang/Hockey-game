@@ -14,6 +14,29 @@ import { evaluate, gradeDecision, NET } from './evaluate.js';
 const GOAL_Z = 26;
 const OWN_NET = { x: 0, z: -26 };
 const NET_H = 1.22; // hauteur de la cage (m)
+const CORNER_R = 8.5; // rayon des coins arrondis de la patinoire (m)
+
+/** Ramène un point à l'intérieur de la patinoire aux coins arrondis (marge en m). Renvoie la normale si on a touché. */
+function inRink(o, margin) {
+  const hx = 13 - margin;
+  const hz = 30 - margin;
+  const r = CORNER_R - margin;
+  const cx = hx - r;
+  const cz = hz - r;
+  if (Math.abs(o.x) > cx && Math.abs(o.z) > cz) {
+    const dx = Math.abs(o.x) - cx;
+    const dz = Math.abs(o.z) - cz;
+    const d = Math.hypot(dx, dz);
+    if (d > r) {
+      const nx = (dx / d) * Math.sign(o.x);
+      const nz = (dz / d) * Math.sign(o.z);
+      o.x = Math.sign(o.x) * (cx + (dx / d) * r);
+      o.z = Math.sign(o.z) * (cz + (dz / d) * r);
+      return { nx, nz };
+    }
+  }
+  return null;
+}
 const GRAVITY = 9.8;
 
 /**
@@ -238,6 +261,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     stealT: 0,
     tooHard: false,
     lastPassFromMe: null,
+    returned: false, // une-deux : le coéquipier a rendu le palet
     trailMe: [],
     trailPuck: [],
     trailT: 0,
@@ -334,6 +358,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
   function confine(a) {
     a.x = clamp(a.x, -LIMIT_X, LIMIT_X);
     a.z = clamp(a.z, -LIMIT_Z, LIMIT_Z);
+    inRink(a, 0.6);
     // On ne traverse pas la cage
     if (a.z > 25.6 && a.z < 27.3 && Math.abs(a.x) < 1.3) a.x = a.x < 0 ? -1.3 : 1.3;
   }
@@ -415,6 +440,25 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         const ty = clamp(z.y + (rand() - 0.5) * 2 * err * 0.6, 0.05, 1.4);
         launch(a, angleTo(b, { x: tx, z: GOAL_Z }), speed, a, true, liftFor(dist(b, { x: tx, z: GOAL_Z }), speed, ty));
       };
+      // Une-deux (dans certains exercices) : si le joueur s'est bien démarqué — personne à moins de
+      // 3 m, ligne de passe libre, et mieux placé que le porteur pour aller au but — le coéquipier
+      // lui rend le palet. Sinon il garde le palet un moment pour lui laisser le temps de se démarquer.
+      if (scn.giveGo && s.lastPassFromMe === a.num && !s.returned) {
+        const meOpen = !actors.some((o) => !o.team && !o.goalie && dist(o, me) < 3);
+        const better = dist(me, NET) < toNet + 2;
+        if (a.hasT > 0.45 && meOpen && better && laneClear(blade(a), me, 1.3)) {
+          const target = lead(blade(a), { ...blade(me), vx: me.vx, vz: me.vz }, 13);
+          launch(a, angleTo(blade(a), target), 13, a, false);
+          s.returned = true;
+          emit('pass', { from: a.num, giveGo: true });
+          return;
+        }
+        if (a.hasT < 2.5) {
+          moveTo(a, { x: a.x * 0.8, z: Math.min(22, a.z + 1.5) }, 2.4, dt);
+          a.face = angleTo(a, me);
+          return;
+        }
+      }
       if (a.hasT > 0.3 && toNet < 12 && laneClear(a, NET, 1.1)) {
         shoot(21);
         emit('mateShot', { num: a.num });
@@ -686,6 +730,15 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     if (Math.abs(p.z) > 29.9) {
       p.z = Math.sign(p.z) * 29.9;
       p.vz *= -0.6;
+    }
+    // Coins arrondis : le palet rebondit le long de la bande
+    const hit = inRink(p, 0.1);
+    if (hit) {
+      const vn = p.vx * hit.nx + p.vz * hit.nz;
+      if (vn > 0) {
+        p.vx -= 1.6 * vn * hit.nx;
+        p.vz -= 1.6 * vn * hit.nz;
+      }
     }
     if (s.over) return;
 

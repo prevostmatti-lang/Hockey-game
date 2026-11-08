@@ -168,3 +168,33 @@ test('la cage n’apparaît que pour un swipe vers le but, pas pour une passe', 
     assert.ok(!sim.wouldShoot(angleTo(from, { x: 0, z: 26 }) + 0.6), `${id} : swipe à côté = pas de cage`);
   }
 });
+
+test('une-deux : passer puis se démarquer vers le but, le coéquipier rend le palet (u9-1)', () => {
+  const sim = createSim(scn('u9-1'), U9, 'R', () => 0.5);
+  waitPuck(sim);
+  const st = sim.state;
+  const mate = st.actors.find((a) => a.num === 9);
+  sim.release(angleTo(sim.blade(st.me), mate), 0.4);
+  // le joueur fonce vers le but, du côté libre
+  let back = false;
+  for (let i = 0; i < 6 / DT && !st.over; i++) {
+    const tgt = { x: 2, z: 18 };
+    const turn = Math.max(-1, Math.min(1, -Math.atan2(Math.sin(angleTo(st.me, tgt) - st.me.yaw), Math.cos(angleTo(st.me, tgt) - st.me.yaw)) * 2));
+    sim.step(DT, { skate: true, turn });
+    if (st.returned && st.puck.owner === st.me) {
+      back = true;
+      break;
+    }
+  }
+  assert.ok(back, 'le n°9 a rendu le palet');
+});
+
+test('une-deux : si le joueur reste immobile et marqué, le coéquipier ne rend pas le palet', () => {
+  const sim = createSim(scn('u9-1'), U9, 'R', () => 0.5);
+  waitPuck(sim);
+  const st = sim.state;
+  const mate = st.actors.find((a) => a.num === 9);
+  sim.release(angleTo(sim.blade(st.me), mate), 0.4);
+  for (let i = 0; i < 1.5 / DT && !st.over; i++) sim.step(DT, {});
+  assert.ok(!st.returned, 'pas de une-deux sans se démarquer');
+});

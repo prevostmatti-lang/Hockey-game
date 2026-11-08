@@ -33,6 +33,12 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
 
+### Une-deux
+Dans certaines situations (signalées 🔁 avant de jouer : U9 « Le copain tout seul », U11 « 2 contre 1 », U13 « Contre-attaque »), le coéquipier à qui tu passes le palet te le **rend** si tu te démarques bien : personne à moins de 3 m de toi, ligne de passe libre, et tu es mieux placé que lui pour aller au but. Sinon il garde le palet ou joue seul.
+
+### Réalisme
+Patinoire aux coins arrondis (le palet rebondit le long de la bande), foulées et joueurs penchés en avant selon leur vitesse, lames de patins, ombres des joueurs et du palet (on voit quand il vole), logo du club sur les bandes (`assets/logo-club.png`).
+
 ### Tir et cage
 - **Swipe vers le but** : le jeu passe au ralenti et la **cage** apparaît, vue de face, avec le gardien et 5 cibles (coins, entre les jambières). **Verte** = trou libre, **rouge** = couvert par le gardien (selon sa position, sa posture debout ou en papillon, le temps qu'il a pour glisser) ou par un défenseur sur la trajectoire. On touche une cible pour tirer dedans.
 - **Selon la catégorie** :

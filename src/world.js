@@ -33,15 +33,49 @@ function rod(a, b, radius, material) {
   return m;
 }
 
+const CORNER_R = 8.5; // coins arrondis (m), comme une vraie patinoire
+
+/** Contour de la patinoire (coins arrondis), parcouru dans un seul sens (angle croissant). */
+function rinkOutline(steps = 10) {
+  const r = CORNER_R;
+  const cx = W / 2 - r;
+  const cz = L / 2 - r;
+  const pts = [];
+  // Coins dans l'ordre : (+,+) 0→90°, (-,+) 90→180°, (-,-) 180→270°, (+,-) 270→360°
+  const corners = [
+    [cx, cz],
+    [-cx, cz],
+    [-cx, -cz],
+    [cx, -cz],
+  ];
+  corners.forEach(([ox, oz], q) => {
+    for (let i = 0; i <= steps; i++) {
+      const a = ((q + i / steps) * Math.PI) / 2;
+      pts.push({ x: ox + Math.cos(a) * r, z: oz + Math.sin(a) * r });
+    }
+  });
+  return pts;
+}
+
+/** Demi-largeur de la glace à la hauteur z (pour les lignes près des coins). */
+function halfWidthAt(z) {
+  const cz = L / 2 - CORNER_R;
+  const dz = Math.abs(z) - cz;
+  if (dz <= 0) return W / 2;
+  return W / 2 - CORNER_R + Math.sqrt(Math.max(0, CORNER_R * CORNER_R - dz * dz));
+}
+
 function buildRink(scene) {
-  const ice = new THREE.Mesh(new THREE.PlaneGeometry(W, L), std(0xf2f8fc, { roughness: 0.25 }));
+  const outline = rinkOutline(12);
+  const shape = new THREE.Shape(outline.map((p) => new THREE.Vector2(p.x, -p.z)));
+  const ice = new THREE.Mesh(new THREE.ShapeGeometry(shape), std(0xf2f8fc, { roughness: 0.25 }));
   ice.rotation.x = -Math.PI / 2;
   scene.add(ice);
 
   // Lignes
   scene.add(flat(new THREE.PlaneGeometry(W, 0.3), 0xd7263d, 0, 0));
   for (const z of [-7.5, 7.5]) scene.add(flat(new THREE.PlaneGeometry(W, 0.3), 0x1f4fd6, 0, z));
-  for (const z of [-26, 26]) scene.add(flat(new THREE.PlaneGeometry(W - 2, 0.06), 0xd7263d, 0, z));
+  for (const z of [-26, 26]) scene.add(flat(new THREE.PlaneGeometry(2 * halfWidthAt(26) - 0.2, 0.06), 0xd7263d, 0, z));
   // Cercles
   scene.add(flat(new THREE.RingGeometry(4.45, 4.55, 64), 0x1f4fd6, 0, 0, 0.005));
   for (const x of [-7, 7]) {
@@ -55,32 +89,68 @@ function buildRink(scene) {
     scene.add(flat(new THREE.CircleGeometry(1.8, 32, start, Math.PI), 0x8ec5ff, 0, z, 0.006, { transparent: true, opacity: 0.8 }));
   }
 
-  // Bandes, plinthe jaune et vitres
+  // Bandes, plinthe jaune et vitres, le long du contour arrondi
   const board = std(0xffffff);
   const kick = std(0xf5c518);
   const glass = new THREE.MeshStandardMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.12, roughness: 0.05 });
-  const walls = [
-    [W + 0.6, 0, -L / 2 - 0.15, 0.3, true],
-    [W + 0.6, 0, L / 2 + 0.15, 0.3, true],
-    [L, -W / 2 - 0.15, 0, 0.3, false],
-    [L, W / 2 + 0.15, 0, 0.3, false],
-  ];
-  for (const [len, x, z, th, alongX] of walls) {
-    const sx = alongX ? len : th;
-    const sz = alongX ? th : len;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(sx, 1.1, sz), board);
-    b.position.set(x, 0.55, z);
-    scene.add(b);
-    const k = new THREE.Mesh(new THREE.BoxGeometry(sx + 0.01, 0.2, sz + 0.01), kick);
-    k.position.set(x, 0.1, z);
-    scene.add(k);
-    const g = new THREE.Mesh(new THREE.BoxGeometry(sx, 1.8, sz), glass);
-    g.position.set(x, 2.0, z);
-    scene.add(g);
-    // Tribunes
-    const st = new THREE.Mesh(new THREE.BoxGeometry(alongX ? len + 20 : 10, 8, alongX ? 10 : len), std(0x24344f));
-    st.position.set(alongX ? x : x + Math.sign(x) * 6, 3, alongX ? z + Math.sign(z) * 6 : z);
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i];
+    const b = outline[(i + 1) % outline.length];
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len < 1e-3) continue;
+    const mx = (a.x + b.x) / 2;
+    const mz = (a.z + b.z) / 2;
+    // Normale vers l'extérieur (contour parcouru dans le sens de l'angle croissant) : mur décalé de 0,15 m
+    const nx = (b.z - a.z) / len;
+    const nz = -(b.x - a.x) / len;
+    const ox = mx + nx * 0.15;
+    const oz = mz + nz * 0.15;
+    const rotY = Math.atan2(-(b.z - a.z), b.x - a.x);
+    for (const [mat, h, y, t] of [
+      [board, 1.1, 0.55, 0.3],
+      [kick, 0.2, 0.1, 0.31],
+      [glass, 1.8, 2.0, 0.3],
+    ]) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(len + 0.02, h, t), mat);
+      m.position.set(ox, y, oz);
+      m.rotation.y = rotY;
+      scene.add(m);
+    }
+  }
+  // Tribunes
+  for (const [sx, sz, x, z] of [
+    [W + 30, 10, 0, -L / 2 - 6],
+    [W + 30, 10, 0, L / 2 + 6],
+    [10, L, -W / 2 - 6, 0],
+    [10, L, W / 2 + 6, 0],
+  ]) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(sx, 8, sz), std(0x24344f));
+    st.position.set(x, 3, z);
     scene.add(st);
+  }
+  addLogos(scene);
+}
+
+/** Logo du club sur les bandes (côtés et fonds), tourné vers la glace. */
+function addLogos(scene) {
+  const tex = new THREE.TextureLoader().load(new URL('../assets/logo-club.png', import.meta.url).href);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 });
+  const geo = new THREE.PlaneGeometry(0.95, 0.95);
+  const place = (x, z, rotY) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, 0.62, z);
+    m.rotation.y = rotY;
+    scene.add(m);
+  };
+  for (const z of [-17, -8, 0, 8, 17]) {
+    place(-W / 2 + 0.005, z, Math.PI / 2); // côté x négatif, regarde vers +x
+    place(W / 2 - 0.005, z, -Math.PI / 2); // côté x positif, regarde vers -x
+  }
+  for (const x of [-3, 3]) {
+    place(x, -L / 2 + 0.005, 0); // fond z négatif, regarde vers +z
+    place(x, L / 2 - 0.005, Math.PI); // fond z positif, regarde vers -z
   }
 }
 
@@ -261,13 +331,22 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   const dark = std(COLORS.dark);
   const white = std(0xffffff);
 
+  const legs = [];
   for (const s of [-0.13, 0.13]) {
+    // Jambe articulée à la hanche (pour les foulées)
+    const hip = new THREE.Group();
+    hip.position.set(s, 0.68, 0);
     const skate = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.34), dark);
-    skate.position.set(s, 0.06, 0.04);
-    g.add(skate);
+    skate.position.set(0, -0.62, 0.04);
+    hip.add(skate);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.38), std(0xb8c2cc, { metalness: 0.6, roughness: 0.3 }));
+    blade.position.set(0, -0.68, 0.04);
+    hip.add(blade);
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.55, 10), goalie ? white : jersey);
-    leg.position.set(s, 0.4, 0);
-    g.add(leg);
+    leg.position.set(0, -0.28, 0);
+    hip.add(leg);
+    g.add(hip);
+    legs.push(hip);
   }
   const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.25, 0.32, 14), dark);
   pants.position.y = 0.82;
@@ -314,6 +393,20 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
     g.add(pads);
   }
 
+  // Tout le corps dans un groupe qui peut se pencher en avant quand on patine.
+  const body = new THREE.Group();
+  while (g.children.length) body.add(g.children[0]);
+  g.add(body);
+  // Ombre douce sous le joueur
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.42, 20),
+    new THREE.MeshBasicMaterial({ color: 0x0b2545, transparent: true, opacity: 0.18, depthWrite: false }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.006;
+  g.add(shadow);
+  g.userData.anim = { body, legs, phase: Math.random() * 6, last: null };
+
   if (num != null) {
     const label = numberSprite(num, team ? '#1e66f5' : '#e5484d');
     label.position.y = 2.15;
@@ -357,9 +450,16 @@ export function createWorld(canvas) {
   let myStick = buildMyStick('R');
   scene.add(myStick);
 
-  const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.04, 20), std(0x111111, { roughness: 0.4 }));
+  const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.03, 20), std(0x111111, { roughness: 0.4 }));
   puck.position.set(0, 0.02, 0);
   scene.add(puck);
+  // Ombre du palet : on voit bien quand il vole (tir haut, passe levée).
+  const puckShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.08, 16),
+    new THREE.MeshBasicMaterial({ color: 0x0b2545, transparent: true, opacity: 0.3, depthWrite: false }),
+  );
+  puckShadow.rotation.x = -Math.PI / 2;
+  scene.add(puckShadow);
 
   const actors = new THREE.Group();
   scene.add(actors);
@@ -460,6 +560,24 @@ export function createWorld(canvas) {
       return {
         mesh,
         setPos(x, z) {
+          // Foulées et inclinaison selon la vitesse réelle du joueur.
+          const an = mesh.userData.anim;
+          const now = performance.now();
+          if (an && an.last) {
+            const dt = Math.max(0.001, (now - an.last.t) / 1000);
+            const v = Math.hypot(x - an.last.x, z - an.last.z) / dt;
+            an.v = an.v == null ? v : an.v + (v - an.v) * Math.min(1, dt * 8);
+            const k = Math.min(1, an.v / 4.5);
+            an.phase += dt * (3 + an.v * 1.6);
+            const sw = Math.sin(an.phase) * 0.45 * k;
+            an.legs[0].rotation.x = sw;
+            an.legs[1].rotation.x = -sw;
+            an.legs[0].rotation.z = -0.12 * k * Math.max(0, Math.sin(an.phase));
+            an.legs[1].rotation.z = 0.12 * k * Math.max(0, -Math.sin(an.phase));
+            an.body.rotation.x = 0.22 * k; // penché en avant
+            an.body.position.y = -0.06 * k; // genoux fléchis
+          }
+          if (an) an.last = { x, z, t: now };
           mesh.position.set(x, 0, z);
         },
         face(x, z) {
@@ -473,6 +591,11 @@ export function createWorld(canvas) {
       return hit ? hit.object.userData.pick : null;
     },
     render() {
+      puckShadow.visible = puck.visible;
+      puckShadow.position.set(puck.position.x, 0.004, puck.position.z);
+      const k = 1 + puck.position.y * 1.5;
+      puckShadow.scale.set(k, k, 1);
+      puckShadow.material.opacity = 0.3 / k;
       renderer.render(scene, camera);
     },
   };
