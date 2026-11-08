@@ -24,10 +24,15 @@
 //   attack    vitesse du porteur adverse (m/s)
 //   passReact temps avant que le porteur adverse cherche une passe quand il est pressé (s)
 //   poke      temps de contact crosse-palet nécessaire pour récupérer le palet (s)
+// Tir :
+//   shotTime   temps pour choisir sa cible quand la cage apparaît (s)
+//   targetSize taille des cibles à l'écran (px)
+//   goalieSize taille du gardien (moins d'espace libre quand elle augmente)
+//   stickAngle U13 : le tir part dans l'axe de la crosse (le corps), pas dans celui du regard
 export const LEVELS = [
-  { id: 'U9', name: 'U9', ages: '6-8 ans', color: '#2fbf71', time: 30, presser: 2.4, goalie: 2.2, goalieReaction: 0.3, assist: 0.24, passDelay: 2.5, steal: 0.9, pressDelay: 1.5, attack: 2.6, passReact: 1.2, poke: 0.15 },
-  { id: 'U11', name: 'U11', ages: '9-10 ans', color: '#f5a524', time: 22, presser: 3.4, goalie: 3.0, goalieReaction: 0.22, assist: 0.13, passDelay: 2.0, steal: 0.5, pressDelay: 0.7, attack: 3.4, passReact: 0.8, poke: 0.25 },
-  { id: 'U13', name: 'U13', ages: '11-12 ans', color: '#e5484d', time: 18, presser: 4.4, goalie: 3.8, goalieReaction: 0.14, assist: 0.06, passDelay: 1.6, steal: 0.35, pressDelay: 0.2, attack: 4.4, passReact: 0.45, poke: 0.35 },
+  { id: 'U9', name: 'U9', ages: '6-8 ans', color: '#2fbf71', time: 30, presser: 2.4, goalie: 2.2, goalieReaction: 0.3, assist: 0.24, passDelay: 2.5, steal: 0.9, pressDelay: 1.5, attack: 2.6, passReact: 1.2, poke: 0.15, shotTime: 3, targetSize: 56, goalieSize: 0.85, stickAngle: false },
+  { id: 'U11', name: 'U11', ages: '9-10 ans', color: '#f5a524', time: 22, presser: 3.4, goalie: 3.0, goalieReaction: 0.22, assist: 0.13, passDelay: 2.0, steal: 0.5, pressDelay: 0.7, attack: 3.4, passReact: 0.8, poke: 0.25, shotTime: 2, targetSize: 44, goalieSize: 1, stickAngle: false },
+  { id: 'U13', name: 'U13', ages: '11-12 ans', color: '#e5484d', time: 18, presser: 4.4, goalie: 3.8, goalieReaction: 0.14, assist: 0.06, passDelay: 1.6, steal: 0.35, pressDelay: 0.2, attack: 4.4, passReact: 0.45, poke: 0.35, shotTime: 1.2, targetSize: 32, goalieSize: 1.12, stickAngle: true },
 ];
 
 // Rôles des adversaires : `presser` (vient au contact du porteur), `cover: n°` (marque un coéquipier),

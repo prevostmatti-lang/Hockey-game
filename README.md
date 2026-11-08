@@ -34,9 +34,19 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | Double tap | freiner |
 
 ### Tir et cage
-- **Assistance au tir** : un swipe à peu près vers le but est guidé vers la cible libre la plus proche (aide forte en U9, faible en U13).
-- **Cage fixe à l'écran** : à moins de 16 m du but avec le palet, la cage vue de face apparaît avec le gardien et 5 cibles. Une cible est **verte** si le tir peut y passer, **rouge** si le gardien la couvre ou si un défenseur bloque un tir bas. Le jeu tient compte de la position du gardien, du temps qu'il a pour glisser vers le tir, et de sa posture : **debout** (coins et entre les jambières ouverts) ou **en papillon** près du but (tout le bas fermé, coins hauts ouverts).
-- **Le palet vole** : les tirs hauts et les passes levées montent puis retombent (gravité). Un tir très fort est un peu moins précis.
+- **Swipe vers le but** : le jeu passe au ralenti et la **cage** apparaît, vue de face, avec le gardien et 5 cibles (coins, entre les jambières). **Verte** = trou libre, **rouge** = couvert par le gardien (selon sa position, sa posture debout ou en papillon, le temps qu'il a pour glisser) ou par un défenseur sur la trajectoire. On touche une cible pour tirer dedans.
+- **Selon la catégorie** :
+
+| | U9 | U11 | U13 |
+|---|---|---|---|
+| Temps pour choisir | 3 s | 2 s | 1,2 s |
+| Taille des cibles | grande | moyenne | petite |
+| Gardien | plus petit | normal | plus grand |
+
+- **Trop tard** : le tir part là où on a swipé, sans aide.
+- **U13 : l'angle de la crosse n'est pas l'angle du regard.** La cage est montrée depuis la palette (de côté, elle paraît plus étroite). Le tir part dans l'axe de la crosse et du corps : si on regarde le but sans s'être tourné vers lui, le tir est beaucoup moins précis, et le jeu l'explique.
+- **Visée au swipe** : seule la direction du swipe compte (tout droit = devant, penché = de ce côté), pas l'endroit où le doigt se pose.
+- **Le palet vole** : tirs hauts et passes levées (swipe long) montent puis retombent.
 
 Une situation se joue ainsi :
 1. Un coéquipier envoie le palet. Avant qu'il arrive, l'enfant se tourne pour repérer ses coéquipiers.

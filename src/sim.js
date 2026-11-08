@@ -52,7 +52,7 @@ export function goalieCovers(keeper, x, y, scale = 1) {
  * Le gardien se tient devant sa ligne : on regarde où la trajectoire du tireur (`from`)
  * croise la position du gardien, pas seulement la ligne de but.
  */
-export function zoneStatus(keeper, from = null, reach = 0, skaters = []) {
+export function zoneStatus(keeper, from = null, reach = 0, skaters = [], size = 1) {
   const netZ = keeper.z > 0 ? GOAL_Z : -GOAL_Z;
   return SHOT_ZONES.map((z) => {
     const x = z.five ? keeper.x : z.x;
@@ -75,7 +75,7 @@ export function zoneStatus(keeper, from = null, reach = 0, skaters = []) {
       }
     }
     // La cible « entre les jambières » se vise sur le gardien lui-même.
-    return { ...z, x, blocked, open: !blocked && !goalieCovers(k2, z.five ? keeper.x : xAt, yAt) };
+    return { ...z, x, blocked, open: !blocked && !goalieCovers(k2, z.five ? keeper.x : xAt, yAt, size) };
   });
 }
 
@@ -407,7 +407,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       }
       const toNet = dist(a, NET);
       const shoot = (speed) => {
-        const zs = goalie ? zoneStatus(goalie, a, 0, actors.filter((o) => !o.team && !o.goalie)).filter((z) => z.open) : [];
+        const zs = goalie ? zoneStatus(goalie, a, 0, actors.filter((o) => !o.team && !o.goalie), level.goalieSize ?? 1).filter((z) => z.open) : [];
         const z = zs.length ? zs[Math.floor(rand() * zs.length)] : { x: goalie && goalie.x > 0 ? -0.7 : 0.7, y: 0.15 };
         const b = blade(a);
         const err = 0.03 * dist(b, NET);
@@ -655,7 +655,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         if (net.keeper && crossed(pz, p.z, plane)) {
           const k = (plane - pz) / (p.z - pz);
           const x = px + (p.x - px) * k;
-          if (goalieCovers(net.keeper, x, p.y)) {
+          if (goalieCovers(net.keeper, x, p.y, net.keeper.team ? 1 : (level.goalieSize ?? 1))) {
             p.x = x;
             p.z = plane - net.sign * 0.3;
             gain(net.keeper);
@@ -816,6 +816,21 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
    * @param opts.zone   identifiant d'une cible de tir (HG, HD, BG, BD, J) : tir dans cette zone
    * @param opts.lifted passe levée (au-dessus des crosses)
    */
+  /** Le swipe dans cette direction est-il un tir (vers le but) ? */
+  function wouldShoot(aim) {
+    if (s.over || s.puck.owner !== me || !goalie) return false;
+    const from = blade(me);
+    const f = fwd(aim);
+    if (f.z <= 0.05 || from.z >= GOAL_Z) return false;
+    const xCross = from.x + (f.x / f.z) * (GOAL_Z - from.z);
+    return Math.abs(xCross) < POST + Math.tan(level.assist) * (GOAL_Z - from.z) + 0.6;
+  }
+
+  /** Écart (rad) entre la direction du tir et l'axe de la crosse / du corps. */
+  function stickOffset(aim) {
+    return Math.abs(wrap(aim - me.yaw));
+  }
+
   function release(aim, power, opts = {}) {
     if (s.over || s.puck.owner !== me) return null;
     const from = blade(me);
@@ -826,7 +841,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     let shotPoint = null;
 
     if (opts.zone && goalie) {
-      zone = zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie)).find((z) => z.id === opts.zone);
+      zone = zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).find((z) => z.id === opts.zone);
     } else {
       // Vers le but ? Petite assistance : on ramène le tir vers la cible ouverte la plus proche.
       const f = fwd(aim);
@@ -836,17 +851,24 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         if (Math.abs(xCross) < tol) {
           isShot = true;
           const snap = 0.35 + assist * 2; // rayon de l'aide : grand en U9, petit en U13
-          const open = goalie ? zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie)).filter((z) => z.open) : [];
+          const open = goalie ? zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).filter((z) => z.open) : [];
           const near = open.sort((a, b) => Math.abs(a.x - xCross) - Math.abs(b.x - xCross))[0];
           if (near && Math.abs(near.x - xCross) < snap) zone = near;
           else shotPoint = { x: clamp(xCross, -0.75, 0.75), y: 0.15 };
         }
       }
     }
+    let offAxis = 0;
     if (zone) {
       isShot = true;
       // Petite imprécision, plus grande quand on tire très fort.
-      const err = 0.05 + 0.07 * clamp(power, 0, 1);
+      let err = 0.05 + 0.07 * clamp(power, 0, 1);
+      // U13 : le tir part de la palette, dans l'axe de la crosse. Si le corps n'est pas tourné
+      // vers la cible (on la regarde seulement), le tir est beaucoup moins précis.
+      if (level.stickAngle) {
+        offAxis = stickOffset(angleTo(from, { x: zone.x, z: GOAL_Z }));
+        if (offAxis > 0.5) err += 0.5 * (offAxis - 0.5);
+      }
       shotPoint = { x: zone.x + (rand() - 0.5) * 2 * err, y: clamp(zone.y + (rand() - 0.5) * 2 * err, 0.05, 1.15) };
     }
     if (shotPoint) aim = angleTo(from, { x: shotPoint.x, z: GOAL_Z });
@@ -908,6 +930,8 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       zone: zone ? zone.id : null,
       zoneLabel: zone ? zone.label : null,
       zoneOpen: zone ? zone.open : null,
+      offAxis,
+      offAxisBad: !!level.stickAngle && offAxis > 0.5,
       goalieButterfly: goalie ? !!goalie.butterfly : false,
       lifted,
     };
@@ -918,5 +942,5 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     return info;
   }
 
-  return { state: s, step, release, blade, zones: () => (goalie ? zoneStatus(goalie, blade(me), goalieReach(goalie, blade(me), level), actors.filter((a) => !a.team && !a.goalie)) : []) };
+  return { state: s, step, release, blade, wouldShoot, stickOffset, zones: () => (goalie ? zoneStatus(goalie, blade(me), goalieReach(goalie, blade(me), level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
 }

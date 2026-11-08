@@ -131,6 +131,7 @@ function startLevel(levelId, mode = G.mode) {
 }
 
 function loadScenario(scn) {
+  stopAiming();
   G.sim = createSim(scn, G.level, G.hand);
   G.evIdx = 0;
   G.seen = new Set();
@@ -367,21 +368,20 @@ function tryFlick(p) {
   if (speed < 0.9) return false;
   const power = clamp((speed - 0.9) / 4.5, 0, 1);
 
-  // On prolonge le swipe jusqu'à l'horizon : on vise là où le doigt « pointe » sur la glace.
-  const W = canvas.clientWidth;
-  const yT = world.horizonY() + 12;
-  let kx;
-  if (e.y <= yT) kx = e.x;
-  else if (s0.y > yT + 20) kx = s0.x + dx * ((yT - s0.y) / dy);
-  else kx = e.x + dx * 2;
-  kx = clamp(kx, -W, 2 * W);
-  const pt = world.groundPoint(kx, yT);
+  // Seule la DIRECTION du swipe compte (pas l'endroit où le doigt s'est posé) :
+  // tout droit vers le haut = droit devant (là où l'on regarde), penché à droite = vers la droite.
   const me = st.me;
-  const aim = pt ? angleTo(me, pt) : me.yaw + me.head;
+  const swipeAngle = Math.atan2(dx, -dy); // 0 = vers le haut, + = vers la droite
+  const aim = me.yaw + me.head - clamp(swipeAngle, -1.3, 1.3) * 0.9;
 
   if (G.radar == null) G.radar = allSeen();
   // Swipe long (plus de 40 % de la hauteur de l'écran) : passe levée, au-dessus des crosses.
   const lifted = p.y0 - e.y > 0.4 * H;
+  // Swipe vers le but : la cage apparaît, le jeu ralentit, et on choisit où tirer.
+  if (!lifted && G.sim.wouldShoot(aim)) {
+    startAiming(aim, power);
+    return true;
+  }
   const info = G.sim.release(aim, power, { lifted });
   if (!info) return false;
   sfx.puck();
@@ -392,16 +392,42 @@ function tryFlick(p) {
 }
 
 // ---------- cage et cibles de tir ----------
-// Quand on a le palet assez près du but, une vue fixe de la cage apparaît avec 5 cibles :
-// vertes si elles sont libres, rouges si le gardien les couvre (selon sa position et s'il est
-// debout ou en papillon). On touche une cible pour tirer dedans.
-const ZONE_PANEL_RANGE = 16; // m
-const NET = { x: 0, z: 26 };
+// Quand on swipe vers le but, le jeu passe au ralenti et la cage apparaît avec 5 cibles :
+// vertes si elles sont libres, rouges si le gardien les couvre (selon sa position, sa posture,
+// et la taille du gardien selon la catégorie). On a un temps limité (selon la catégorie) pour
+// toucher une cible. Trop tard : le tir part là où on a swipé, sans aide.
+// En U13, la cage est vue DEPUIS LA PALETTE : de côté, elle paraît plus étroite.
+const AIM_SLOWMO = 0.15;
+const NET = { x: 0, z: 26 }; // but attaqué
 
 function shotPanelVisible() {
-  if (G.phase !== 'play' || !G.sim) return false;
+  if (!G.aiming || G.phase !== 'play' || !G.sim) return false;
   const st = G.sim.state;
-  return st.puck.owner === st.me && !st.over && st.goalie && st.me.z < 25 && Math.hypot(st.me.x - NET.x, st.me.z - NET.z) < ZONE_PANEL_RANGE;
+  return st.puck.owner === st.me && !st.over;
+}
+
+function startAiming(aim, power) {
+  G.aiming = { aim, power, t: 0, max: G.level.shotTime ?? 2 };
+  const panel = $('#shot-panel');
+  panel.style.setProperty('--target', `${G.level.targetSize ?? 44}px`);
+  $('#banner').hidden = true;
+  $('#shot-title').textContent = G.level.stickAngle ? '🏒 Vue depuis ta crosse : choisis vite !' : '🎯 Choisis où tirer !';
+  sfx.whistle();
+}
+
+function stopAiming() {
+  G.aiming = null;
+  $('#shot-panel').hidden = true;
+}
+
+function aimTimeout() {
+  const a = G.aiming;
+  stopAiming();
+  if (!G.sim) return;
+  const info = G.sim.release(a.aim, a.power);
+  if (!info) return;
+  sfx.puck();
+  setBanner('⏱️ Trop tard pour viser : tir au hasard !', 'info');
 }
 
 function drawShotPanel() {
@@ -424,41 +450,52 @@ function drawShotPanel() {
   c.clearRect(0, 0, W, H);
   // Vue de face de la cage : 1,83 m × 1,22 m ; la gauche du tireur (x positif) est à gauche.
   const sc = Math.min((W - 16) / 1.83, (H - 14) / 1.22);
+  // U13 : vue depuis la palette. De côté, la cage paraît plus étroite (angle de tir réel).
+  const st = G.sim.state;
+  const from = G.sim.blade(st.me);
+  let squeeze = 1;
+  if (G.level.stickAngle) squeeze = Math.max(0.35, Math.abs(NET.z - from.z) / (Math.hypot(NET.x - from.x, NET.z - from.z) || 1));
   const cx = W / 2;
   const by = H - 6;
-  const X = (x) => cx - x * sc;
+  const X = (x) => cx - x * sc * squeeze;
   const Y = (y) => by - y * sc;
   c.fillStyle = 'rgba(255,255,255,0.92)';
-  c.fillRect(X(0.915), Y(1.22), 1.83 * sc, 1.22 * sc);
+  const NW = 1.83 * sc * squeeze;
+  c.fillRect(X(0.915), Y(1.22), NW, 1.22 * sc);
   c.strokeStyle = 'rgba(0,0,0,0.12)';
   c.lineWidth = 1;
   for (let i = 1; i < 8; i++) {
     c.beginPath();
-    c.moveTo(X(0.915) + (i * 1.83 * sc) / 8, Y(1.22));
-    c.lineTo(X(0.915) + (i * 1.83 * sc) / 8, by);
+    c.moveTo(X(0.915) + (i * NW) / 8, Y(1.22));
+    c.lineTo(X(0.915) + (i * NW) / 8, by);
     c.stroke();
   }
   c.strokeStyle = '#d7263d';
   c.lineWidth = 5;
-  c.strokeRect(X(0.915), Y(1.22), 1.83 * sc, 1.22 * sc);
+  c.strokeRect(X(0.915), Y(1.22), NW, 1.22 * sc);
   // Gardien (dessiné à l'intérieur du cadre de la cage)
   c.save();
   c.beginPath();
-  c.rect(X(0.915), Y(1.22), 1.83 * sc, 1.22 * sc);
+  c.rect(X(0.915), Y(1.22), NW, 1.22 * sc);
   c.clip();
+  c.translate(cx, 0);
+  c.scale(squeeze, 1);
+  c.translate(-cx, 0);
+  const gs = G.level.goalieSize ?? 1;
   c.fillStyle = '#e5484d';
-  const gx = X(g.x);
+  const gx = cx - g.x * sc;
+  const k = gs; // gardien plus ou moins grand selon la catégorie
   if (g.butterfly) {
-    c.fillRect(gx - 0.86 * sc, Y(0.3), 1.72 * sc, 0.3 * sc); // jambières au sol
-    c.fillRect(gx - 0.32 * sc, Y(0.86), 0.64 * sc, 0.56 * sc); // corps
-    c.fillRect(gx - 0.56 * sc, Y(0.78), 0.24 * sc, 0.3 * sc); // mitaine
-    c.fillRect(gx + 0.32 * sc, Y(0.78), 0.24 * sc, 0.3 * sc); // bouclier
+    c.fillRect(gx - 0.86 * k * sc, Y(0.3), 1.72 * k * sc, 0.3 * sc); // jambières au sol
+    c.fillRect(gx - 0.32 * k * sc, Y(0.86), 0.64 * k * sc, 0.56 * sc); // corps
+    c.fillRect(gx - 0.56 * k * sc, Y(0.78), 0.24 * k * sc, 0.3 * sc); // mitaine
+    c.fillRect(gx + 0.32 * k * sc, Y(0.78), 0.24 * k * sc, 0.3 * sc); // bouclier
   } else {
-    c.fillRect(gx - 0.4 * sc, Y(0.22), 0.28 * sc, 0.22 * sc); // jambière
-    c.fillRect(gx + 0.12 * sc, Y(0.22), 0.28 * sc, 0.22 * sc); // jambière
-    c.fillRect(gx - 0.42 * sc, Y(1.05), 0.84 * sc, 0.83 * sc); // corps
-    c.fillRect(gx - 0.6 * sc, Y(0.92), 0.18 * sc, 0.4 * sc); // mitaine
-    c.fillRect(gx + 0.42 * sc, Y(0.92), 0.18 * sc, 0.4 * sc); // bouclier
+    c.fillRect(gx - 0.4 * k * sc, Y(0.22), 0.28 * k * sc, 0.22 * sc); // jambière
+    c.fillRect(gx + 0.12 * k * sc, Y(0.22), 0.28 * k * sc, 0.22 * sc); // jambière
+    c.fillRect(gx - 0.42 * k * sc, Y(1.05), 0.84 * k * sc, 0.83 * sc); // corps
+    c.fillRect(gx - 0.6 * k * sc, Y(0.92), 0.18 * k * sc, 0.4 * sc); // mitaine
+    c.fillRect(gx + 0.42 * k * sc, Y(0.92), 0.18 * k * sc, 0.4 * sc); // bouclier
   }
   c.fillStyle = '#f1c27d';
   c.beginPath();
@@ -466,6 +503,16 @@ function drawShotPanel() {
   c.fill();
   c.restore();
   // Cibles (boutons placés sur la cage)
+  // Compte à rebours
+  $('#shot-timer-fill').style.transform = `scaleX(${Math.max(0, 1 - G.aiming.t / G.aiming.max)})`;
+  // U13 : la crosse est-elle orientée vers le but ?
+  const tip = $('#shot-stick');
+  tip.hidden = !G.level.stickAngle;
+  if (G.level.stickAngle) {
+    const off = G.sim.stickOffset(angleTo(from, NET));
+    tip.textContent = off > 0.5 ? '⚠️ Ton regard est sur le but, mais pas ta crosse : tir imprécis' : '✅ Crosse orientée vers le but';
+    tip.dataset.ok = off > 0.5 ? '0' : '1';
+  }
   for (const z of zones) {
     const b = panel.querySelector(`[data-zone="${z.id}"]`);
     b.style.left = `${X(z.x)}px`;
@@ -480,11 +527,12 @@ for (const b of document.querySelectorAll('.zone-btn')) {
     e.stopPropagation();
     if (!shotPanelVisible()) return;
     if (G.radar == null) G.radar = allSeen();
-    const info = G.sim.release(0, 0.75, { zone: b.dataset.zone });
+    const power = G.aiming.power;
+    stopAiming();
+    const info = G.sim.release(0, Math.max(0.5, power), { zone: b.dataset.zone });
     if (!info) return;
     sfx.puck();
     setBanner(`🎯 Tir ${info.zoneLabel} !`, 'info');
-    $('#shot-panel').hidden = true;
   });
 }
 
@@ -707,7 +755,8 @@ function showResult() {
   }
   if (rel && rel.isShot && rel.zone) {
     const g = rel.goalieButterfly ? 'Le gardien était en papillon (au sol)' : 'Le gardien était debout';
-    if (!rel.zoneOpen) tip = `${g} et couvrait la zone « ${rel.zoneLabel} » : vise une cible verte.`;
+    if (rel.offAxisBad) tip = `Tu regardais le but, mais ta crosse et ton corps n'étaient pas tournés vers lui : le tir part de la palette, dans l'axe de la crosse. Oriente-toi vers la cible avant de tirer.`;
+    else if (!rel.zoneOpen) tip = `${g} et couvrait la zone « ${rel.zoneLabel} » : vise une cible verte.`;
     else if (st.over.type === 'goal') tip = `${g} : la zone « ${rel.zoneLabel} » était libre. Bien visé !`;
     else if (st.over.type === 'save') tip = `La zone « ${rel.zoneLabel} » était libre, mais le gardien a eu le temps de se déplacer : tire plus vite, dès que la cible est verte.`;
     else if (st.over.type === 'wide') tip = `La zone « ${rel.zoneLabel} » était libre, mais le tir est parti à côté : tire un peu moins fort pour être plus précis.`;
@@ -823,7 +872,12 @@ function update(dt) {
   }
   if (G.phase === 'play') {
     updateInput();
-    G.sim.step(dt, input);
+    if (G.aiming) {
+      G.aiming.t += dt;
+      if (!shotPanelVisible()) stopAiming();
+      else if (G.aiming.t >= G.aiming.max) aimTimeout();
+    }
+    G.sim.step(G.aiming ? dt * AIM_SLOWMO : dt, input);
     if (G.radar == null) trackSeen();
     handleEvents();
     const st = G.sim.state;

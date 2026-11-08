@@ -59,6 +59,7 @@ export function scaledLevel(base, diff) {
     passReact: base.passReact * k(0.12),
     pressDelay: base.pressDelay * k(0.25),
     steal: base.steal * k(0.1),
+    shotTime: base.shotTime * k(0.08),
   };
 }
 

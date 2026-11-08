@@ -886,9 +886,9 @@ p {
 }
 .zone-btn {
   position: absolute;
-  width: 40px;
-  height: 40px;
-  margin: -20px 0 0 -20px;
+  width: var(--target, 40px);
+  height: var(--target, 40px);
+  margin: calc(var(--target, 40px) / -2) 0 0 calc(var(--target, 40px) / -2);
   border-radius: 50%;
   border: 3px solid #fff;
   background: rgba(229, 72, 77, 0.85);
@@ -929,5 +929,68 @@ p {
     transform: translateX(-50%);
     width: min(260px, 66vw);
     height: calc(min(260px, 66vw) * 0.72);
+  }
+}
+
+.shot-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30px;
+  margin: 0;
+  text-align: center;
+  font-weight: 900;
+  font-size: 15px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+#shot-timer {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -8px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+#shot-timer-fill {
+  height: 100%;
+  background: var(--yellow);
+  transform-origin: left center;
+}
+.shot-stick {
+  position: absolute;
+  left: -20px;
+  right: -20px;
+  bottom: -52px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 10px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.92);
+}
+.shot-stick[data-ok='0'] {
+  color: var(--red);
+}
+.shot-stick[data-ok='1'] {
+  color: var(--green);
+}
+/* Pendant la visée, la cage est au centre de l'écran */
+#shot-panel {
+  top: 50%;
+  right: auto;
+  left: 50%;
+  transform: translate(-50%, -55%);
+  width: min(300px, 46vw);
+  height: calc(min(300px, 46vw) * 0.72);
+}
+@media (orientation: portrait) {
+  #shot-panel {
+    top: 42%;
+    width: min(300px, 76vw);
+    height: calc(min(300px, 76vw) * 0.72);
   }
 }
