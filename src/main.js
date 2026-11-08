@@ -224,7 +224,12 @@ function updateInput() {
   input.back = (st && st.zone === 'back') || keys.has('ArrowDown') || keys.has('s');
   input.brake = brakePulse || keys.has('b');
   brakePulse = false;
-  let turn = st && st.zone === 'push' ? clamp(st.theta / (90 * DEG), -1, 1) : 0;
+  // Rotation progressive : un petit écart du pouce tourne doucement, il faut aller franchement sur le côté pour tourner fort.
+  let turn = 0;
+  if (st && st.zone === 'push') {
+    const k = clamp(st.theta / (90 * DEG), -1, 1);
+    turn = Math.sign(k) * Math.abs(k) ** 1.6;
+  }
   if (keys.has('ArrowLeft')) turn = -1;
   if (keys.has('ArrowRight')) turn = 1;
   input.turn = turn;

@@ -101,7 +101,7 @@ test('lâcher l’écran : on glisse en ralentissant ; double tap : on freine ne
     glide.step(DT, {});
     brake.step(DT, {});
   }
-  assert.ok(glide.state.me.speed > v0 - 2 && glide.state.me.speed > 3, 'on glisse encore');
+  assert.ok(glide.state.me.speed > v0 - 3 && glide.state.me.speed > 2.5, 'on glisse encore');
   assert.equal(glide.state.over, null);
   assert.equal(brake.state.me.speed, 0, 'arrêté net');
 });
