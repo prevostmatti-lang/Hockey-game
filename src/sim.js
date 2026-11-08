@@ -820,10 +820,13 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
   function wouldShoot(aim) {
     if (s.over || s.puck.owner !== me || !goalie) return false;
     const from = blade(me);
-    const f = fwd(aim);
-    if (f.z <= 0.05 || from.z >= GOAL_Z) return false;
-    const xCross = from.x + (f.x / f.z) * (GOAL_Z - from.z);
-    return Math.abs(xCross) < POST + Math.tan(level.assist) * (GOAL_Z - from.z) + 0.6;
+    if (from.z >= GOAL_Z) return false;
+    // Écart d'angle entre le swipe et le but : la largeur du but vue d'ici + une petite marge.
+    const d = dist(from, NET);
+    const diffNet = Math.abs(wrap(angleTo(from, NET) - aim));
+    if (diffNet > Math.atan2(POST, d) + 0.1 + level.assist * 0.4) return false;
+    // Un coéquipier plus proche de la direction du swipe que le but : c'est une passe.
+    return !actors.some((a) => a.team && !a.goalie && Math.abs(wrap(angleTo(from, a) - aim)) < diffNet);
   }
 
   /** Écart (rad) entre la direction du tir et l'axe de la crosse / du corps. */
@@ -848,7 +851,9 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       if (f.z > 0.05 && from.z < GOAL_Z) {
         const xCross = from.x + (f.x / f.z) * (GOAL_Z - from.z);
         const tol = POST + Math.tan(assist) * (GOAL_Z - from.z);
-        if (Math.abs(xCross) < tol) {
+        const diffNet = Math.abs(wrap(angleTo(from, NET) - aim));
+        const mateCloser = actors.some((a) => a.team && !a.goalie && Math.abs(wrap(angleTo(from, a) - aim)) < diffNet);
+        if (Math.abs(xCross) < tol && !mateCloser) {
           isShot = true;
           const snap = 0.35 + assist * 2; // rayon de l'aide : grand en U9, petit en U13
           const open = goalie ? zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).filter((z) => z.open) : [];

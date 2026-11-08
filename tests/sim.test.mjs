@@ -153,3 +153,18 @@ test('rotation exponentielle : douce au début, demi-tour en moins de 2 s pouce 
   }
   assert.ok(t < 2, `demi-tour en ${t.toFixed(2)} s`);
 });
+
+test('la cage n’apparaît que pour un swipe vers le but, pas pour une passe', () => {
+  for (const id of ['u9-3', 'u13-1', 'u11-1']) {
+    const s = scn(id);
+    const lv = { U9, U11 }[s.level] || U9;
+    const sim = createSim(s, lv, 'R', () => 0.5);
+    waitPuck(sim);
+    const from = sim.blade(sim.state.me);
+    assert.ok(sim.wouldShoot(angleTo(from, { x: 0, z: 26 })), `${id} : swipe vers le but = tir`);
+    for (const m of sim.state.actors.filter((a) => a.team && a.role !== 'passer')) {
+      assert.ok(!sim.wouldShoot(angleTo(from, m)), `${id} : swipe vers le n°${m.num} = passe`);
+    }
+    assert.ok(!sim.wouldShoot(angleTo(from, { x: 0, z: 26 }) + 0.6), `${id} : swipe à côté = pas de cage`);
+  }
+});
