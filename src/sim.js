@@ -19,9 +19,13 @@ const GOALIE_HALF = 0.45;
 const LIMIT_X = 12.4;
 const LIMIT_Z = 29.4;
 const PUCK_FRICTION = 1.0;
-const ME_MAX = 6.5;
-const ME_MAX_PUCK = 5.6;
-const ME_BACK = 3.8; // patinage à reculons
+const ME_MAX = 4.8; // vitesse de patinage max (m/s)
+const ME_MAX_PUCK = 4.2; // un peu moins vite avec le palet
+const ME_BACK = 2.8; // patinage à reculons
+const ME_ACCEL = 5; // accélération (m/s²)
+// Rythme général des autres patineurs : ralenti dans la même proportion que le joueur (4,8 / 6,5)
+// pour garder l'équilibre des situations.
+const PACE = 0.75;
 const GLIDE = 2.6; // ralentissement quand on glisse sans pousser (m/s²) : ~2 s pour s'arrêter
 const TURN_MAX = 3.0; // vitesse de rotation au maximum (rad/s) : demi-tour en un peu plus d'une seconde
 const TURN_CURVE = 3; // courbure exponentielle de la réponse au pouce
@@ -230,6 +234,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
 
   // ---------- déplacements ----------
   function moveTo(a, target, speed, dt) {
+    speed *= PACE;
     const dx = target.x - a.x;
     const dz = target.z - a.z;
     const d = Math.hypot(dx, dz);
@@ -257,8 +262,8 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     const max = holding ? ME_MAX_PUCK : ME_MAX;
     if (input.brake) me.braking = true;
     if (input.skate || input.back) me.braking = false;
-    if (input.back) me.speed = Math.max(-ME_BACK, me.speed - 7 * dt);
-    else if (input.skate) me.speed = Math.min(max, me.speed + 7 * dt);
+    if (input.back) me.speed = Math.max(-ME_BACK, me.speed - ME_ACCEL * dt);
+    else if (input.skate) me.speed = Math.min(max, me.speed + ME_ACCEL * dt);
     else {
       // Sans pousser, on glisse en ralentissant peu à peu ; après un double tap, on freine fort.
       const decel = me.braking ? BRAKE : GLIDE;

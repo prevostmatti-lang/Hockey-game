@@ -14,7 +14,7 @@
 
 // Réglages par catégorie :
 //   time      durée maximale de la situation (s)
-//   presser   vitesse du défenseur qui vient au contact (m/s ; le joueur patine à 6,5 m/s)
+//   presser   vitesse du défenseur qui vient au contact (m/s, avant le ralenti général PACE = 0,75 ; le joueur patine à 4,8 m/s)
 //   goalie    vitesse latérale du gardien (m/s) ; goalieReaction : son temps de réaction après un tir (s)
 //   assist    aide à la visée (radians) : la passe « s'aimante » vers un coéquipier proche de la direction choisie
 //   passDelay délai avant que le passeur envoie le palet (s)

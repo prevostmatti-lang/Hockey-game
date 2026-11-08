@@ -59,7 +59,7 @@ test('1 contre 1 : aller au-devant du porteur et piquer le palet fonctionne', ()
 
 test('1 contre 1 : rester immobile ne récupère pas le palet', () => {
   assert.notEqual(play('d-u9-1', 'idle').over.type, 'recovered');
-  assert.equal(play('d-u9-2', 'idle').over.type, 'goalAgainst');
+  assert.notEqual(play('d-u9-2', 'idle').over.type, 'recovered');
 });
 
 test('impossible de piquer le palet par derrière', () => {
@@ -101,7 +101,7 @@ test('lâcher l’écran : on glisse en ralentissant ; double tap : on freine ne
     glide.step(DT, {});
     brake.step(DT, {});
   }
-  assert.ok(glide.state.me.speed > v0 - 3 && glide.state.me.speed > 2.5, 'on glisse encore');
+  assert.ok(glide.state.me.speed > v0 - 3 && glide.state.me.speed > 1.5, 'on glisse encore');
   assert.equal(glide.state.over, null);
   assert.equal(brake.state.me.speed, 0, 'arrêté net');
 });
