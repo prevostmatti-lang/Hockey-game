@@ -105,3 +105,17 @@ test('autant de joueurs droitiers que gauchers dans chaque équipe et sur la gla
     assert.ok(gap(skaters) <= 1, `${s.id} sur la glace`);
   }
 });
+
+test('rotation exponentielle : douce au début, demi-tour rapide pouce à fond', async () => {
+  const { turnRate } = await import('../src/sim.js');
+  assert.ok(turnRate(0.3) < 0.5, 'petit écart = rotation douce');
+  assert.ok(turnRate(0.6) < turnRate(1) / 2.5, 'la rotation accélère fortement vers 90°');
+  const sim = createSim(scn('u9-2'), U9, 'R');
+  const yaw0 = sim.state.me.yaw;
+  let t = 0;
+  while (Math.abs(Math.atan2(Math.sin(sim.state.me.yaw - yaw0), Math.cos(sim.state.me.yaw - yaw0))) < Math.PI * 0.97 && t < 3) {
+    sim.step(DT, { skate: true, turn: 1 });
+    t += DT;
+  }
+  assert.ok(t < 1, `demi-tour en ${t.toFixed(2)} s`);
+});
