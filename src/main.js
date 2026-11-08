@@ -95,7 +95,7 @@ function renderMenu() {
     list.appendChild(row);
   }
   $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
-  $('#portrait-tip').hidden = window.innerWidth > window.innerHeight;
+  $('#portrait-tip').hidden = true; // le jeu marche en paysage comme en portrait
 }
 
 function goMenu() {
