@@ -168,8 +168,8 @@ function beginPlay() {
   $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
   $('#hud-step').textContent = G.session ? '⏱️' : `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
-  $('#ctl-hint').textContent =
-    '☝️ 1er doigt : direction et vitesse (vers le bas : reculer) · ✌️ 2e doigt : regarder autour · swipe ↑ : passer ou tirer';
+  $('#ctl-hint').hidden = true;
+  showZones(G.index === 0);
   showScreen(null);
   sfx.whistle();
   if (G.mode === 'defense') {
@@ -186,10 +186,12 @@ function beginPlay() {
 //   - vers le haut ou sur le côté (jusqu'à ~100°) : on patine et on tourne, d'autant plus que l'angle est grand ;
 //   - tiré tout droit vers le bas : on patine à reculons ;
 //   - lever le doigt : on glisse en ralentissant ; double tap : on freine.
-// Le 1er doigt posé (n'importe où) est ce joystick : direction, et vitesse selon la distance du pouce.
-// Un 2e doigt, posé pendant que le 1er est appuyé, sert à la VISION : il tourne la tête sans changer
-// la direction du patinage ; quand on le lève, le regard revient vers l'avant.
-// N'importe quel doigt peut faire la passe ou le tir d'un swipe rapide vers le haut.
+// L'écran est coupé en deux zones :
+//   - paysage : moitié GAUCHE = déplacement (ce joystick), moitié DROITE = vision ;
+//   - portrait : moitié BASSE = déplacement, moitié HAUTE = vision.
+// La vision tourne la tête sans changer la direction du patinage ; quand on lève le doigt,
+// le regard revient vers l'avant. Un swipe rapide vers le haut, dans n'importe quelle zone,
+// fait la passe ou le tir.
 const LOOK_SENS = 1.3; // glisser sur toute la largeur de l'écran = tourner la tête de 1,3 × le champ de vision
 const FULL_SPEED_PX = 90; // pouce à 90 px du point de départ = vitesse maximale
 let lookId = null;
@@ -211,6 +213,19 @@ function resetInput() {
   brakePulse = false;
   keys.clear();
   showStick(null);
+}
+
+/** Zone de déplacement : moitié gauche en paysage, moitié basse en portrait. */
+function inMoveZone(x, y) {
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  return H > W ? y > H / 2 : x < W / 2;
+}
+
+function showZones(on) {
+  const z = $('#zones');
+  z.hidden = !on;
+  z.dataset.layout = canvas.clientHeight > canvas.clientWidth ? 'portrait' : 'landscape';
 }
 
 /** Lit le joystick : renvoie la zone et l'angle du pouce (0 = vers le haut, + = à droite). */
@@ -270,9 +285,9 @@ canvas.addEventListener('pointerdown', (e) => {
   const now = performance.now();
   const p = { x0: e.clientX, y0: e.clientY, t0: now, maxR: 0, samples: [{ t: now, x: e.clientX, y: e.clientY }] };
   pointers.set(e.pointerId, p);
-  // 1er doigt : déplacement ; 2e doigt : vision.
-  if (skateId == null) skateId = e.pointerId;
-  else if (lookId == null) {
+  if (inMoveZone(e.clientX, e.clientY)) {
+    if (skateId == null) skateId = e.pointerId;
+  } else if (lookId == null) {
     lookId = e.pointerId;
     headLook = G.sim ? G.sim.state.me.head : 0;
   }
@@ -282,6 +297,7 @@ canvas.addEventListener('pointerdown', (e) => {
     /* pointeur synthétique */
   }
   $('#ctl-hint').hidden = true;
+  showZones(false);
 });
 
 canvas.addEventListener('pointermove', (e) => {

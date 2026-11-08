@@ -16,13 +16,18 @@ Le revers est moins fort et moins précis.
 
 Le pouce fonctionne comme un **joystick** autour de l'endroit où il s'est posé (un repère s'affiche dessous) :
 
+L'écran est coupé en deux zones (elles sont montrées au début de la première situation) :
+
+| | Paysage | Portrait |
+|---|---|---|
+| 🕹️ **Se déplacer** | moitié gauche | moitié basse |
+| 👀 **Regarder autour** | moitié droite | moitié haute |
+
 | Geste | Action |
 |---|---|
-| ☝️ 1er doigt posé (n'importe où) | joystick : pousser vers le haut pour patiner, plus loin = plus vite |
-| ↗️ 1er doigt sur le côté | tourner ; la rotation augmente de façon exponentielle avec l'angle |
-| ⬇️ 1er doigt vers le bas | patiner à reculons, face au jeu |
-| ✌️ 2e doigt (pendant que le 1er est posé) | regarder autour de soi sans changer de direction ; le regard revient devant quand on le lève |
-| ⬆️ Swipe rapide vers le haut (n'importe quel doigt) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
+| 🕹️ Pousser le pouce (zone de déplacement) | patiner ; plus loin = plus vite ; sur le côté = tourner (rotation exponentielle) ; vers le bas = reculer |
+| 👀 Glisser (zone de vision) | tourner la tête sans changer de direction ; le regard revient devant quand on lève le doigt |
+| ⬆️ Swipe rapide vers le haut (n'importe où) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
 | Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
 

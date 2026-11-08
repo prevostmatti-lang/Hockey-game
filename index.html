@@ -48,8 +48,8 @@
         <div id="levels"></div>
         <h2>Comment jouer</h2>
         <ul class="controls">
-          <li><span class="ico">☝️</span><span><b>1er doigt</b> : c’est ton joystick. Pousse vers le haut pour patiner (plus tu pousses loin, plus tu vas vite), sur le côté pour tourner.</span></li>
-          <li><span class="ico">✌️</span><span><b>2e doigt</b> (pendant que le 1er est posé) : glisse-le pour regarder autour de toi. Lève-le et ton regard revient devant.</span></li>
+          <li><span class="ico">🕹️</span><span><b>Zone de déplacement</b> (moitié gauche à l’horizontale, moitié basse à la verticale) : c’est ton joystick. Pousse pour patiner (plus loin = plus vite), sur le côté pour tourner, vers le bas pour reculer.</span></li>
+          <li><span class="ico">👀</span><span><b>Zone de vision</b> (l’autre moitié) : glisse pour regarder autour de toi. Lève le doigt et ton regard revient devant.</span></li>
           <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort.</span></li>
           <li><span class="ico">🛑</span><span><b>Lâche l’écran</b> : tu glisses en ralentissant. <b>Tape deux fois</b> : tu freines.</span></li>
           <li><span class="ico">⬇️</span><span><b>Tire ton pouce vers le bas</b> pour patiner à reculons (utile en défense).</span></li>
@@ -120,6 +120,10 @@
       <div id="banner" hidden></div>
       <div id="ctl-hint">☝️ Garde ton doigt appuyé pour patiner</div>
       <div id="stick" hidden><div id="stick-knob"></div></div>
+      <div id="zones" hidden>
+        <div class="zone move"><span>🕹️ <b>Se déplacer</b><br />pousse : avancer (plus loin = plus vite)<br />sur le côté : tourner · vers le bas : reculer</span></div>
+        <div class="zone look"><span>👀 <b>Regarder autour</b><br />glisse pour tourner la tête<br />swipe ↑ : passer ou tirer</span></div>
+      </div>
     </div>
 
     <!-- Exercices courts du programme -->
