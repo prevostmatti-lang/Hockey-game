@@ -148,7 +148,7 @@ src/evaluate.js       note les options : lignes de passe, marquage, angle de tir
 src/scenarios.js      les situations d'attaque et de défense
 src/generator.js      variantes de situations (miroir, décalages, numéros), vérifiées
 src/program.js        calendrier et contenu des séances du programme
-src/drills.js         exercices courts : Coup d'œil, Arrêt sur image, Mémoire de glace
+src/drills.js         exercices courts : Lis le jeu (HEADspeed), Arrêt sur image, Mémoire de glace
 src/diagram.js        ralenti vu du dessus
 src/audio.js          sons synthétisés et voix off française
 sw.js                 fonctionnement hors ligne

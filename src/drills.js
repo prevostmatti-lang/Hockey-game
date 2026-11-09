@@ -1,5 +1,5 @@
 // Exercices cognitifs courts du programme (voir docs/PROGRAMME.md) :
-//   - Coup d'œil       : regarder autour de soi et repérer vite un coéquipier (prise d'information, « scanning »)
+//   - Lis le jeu       : l'action se fige, on décide selon son rôle (soutien, duel, marquage) — « HEADspeed »
 //   - Arrêt sur image  : l'action se fige, il faut décider vite ; parfois un adversaire coupe la ligne au
 //                        dernier moment et il faut GARDER le palet (inhibition : retenir la passe prévue)
 //   - Mémoire de glace : regarder la scène 1 à 3 s, puis répondre de mémoire (mémoire de travail)
@@ -90,76 +90,200 @@ function shuffle(arr, rand) {
 }
 
 // =====================================================================
-// Coup d'œil : repérer le plus vite possible un coéquipier, souvent placé derrière soi.
+// Lis le jeu (« HEADspeed », Fédération suisse) : l'action se joue 1,5 s puis se fige.
+// On lit le jeu selon son rôle et on décide :
+//   - SOUTIEN  : un coéquipier a le palet → où te proposer ? (A, B ou C sur la glace)
+//   - DUEL     : ton adversaire direct a le palet → où te placer ?
+//   - MARQUAGE : l'adversaire a le palet → quel joueur dois-tu surveiller ?
+// Chaque réponse est expliquée (ligne de passe, espace libre, côté du but, joueur oublié).
 // =====================================================================
-function coupDoeil(ctx) {
-  const { world, canvas, seg, rand, sfx, speak } = ctx;
-  const U = ui('👀 Coup d’œil');
-  const st = { look: 0, canLook: true };
-  const stats = { reps: 0, hits: 0, times: [] };
-  let t = 0;
-  let rep = null;
-  let pause = 0;
-  const repLimit = seg.timeLimit * 1.6;
+const OWN_NET = { x: 0, z: -26 };
+const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+function segD(p, a, b) {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const l2 = dx * dx + dz * dz || 1e-9;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / l2));
+  return Math.hypot(p.x - (a.x + t * dx), p.z - (a.z + t * dz));
+}
 
-  function newRep() {
+function buildSoutien(rand, pool) {
+  // Le coéquipier qui a le palet est à la place du joueur de la situation ; on cherche 3 places :
+  // une bonne (ligne de passe libre, espace, vers le but), une avec la ligne coupée, une collée à un adversaire.
+  for (let tries = 0; tries < 40; tries++) {
+    const scn = makeVariant(pick(pool, rand), rand);
+    const carrier = scn.me;
+    const opps = scn.opponents.filter((o) => !o.goalie).map(finalPos);
+    const cands = [];
+    for (let k = 0; k < 160; k++) {
+      const a = (rand() - 0.5) * Math.PI * 1.4;
+      const r = 5 + rand() * 8;
+      const p = { x: carrier.x + Math.sin(a) * r, z: carrier.z + Math.cos(a) * r };
+      if (Math.abs(p.x) > 11 || p.z > 23 || p.z < -20) continue;
+      const lane = Math.min(...opps.map((o) => segD(o, carrier, p)));
+      const space = Math.min(...opps.map((o) => d2(o, p)));
+      cands.push({ ...p, lane, space });
+    }
+    const good = cands.filter((c) => c.lane > 2 && c.space > 3.5).sort((a, b) => b.z - a.z)[0];
+    const cut = cands.filter((c) => c.lane < 0.9 && c.space > 1.8).sort((a, b) => b.z - a.z)[0];
+    const covered = cands.filter((c) => c.space < 1.6 && c.lane > 1.2)[0];
+    if (!good || !cut || !covered) continue;
+    if (d2(good, cut) < 3 || d2(good, covered) < 3 || d2(cut, covered) < 3) continue;
+    return {
+      scn,
+      role: 'soutien',
+      prompt: 'Ton coéquipier a le palet : où te proposes-tu ?',
+      options: shuffle(
+        [
+          { ...good, ok: true, why: 'ligne de passe libre et de l’espace autour de toi.' },
+          { ...cut, ok: false, why: 'un adversaire coupe la ligne de passe.' },
+          { ...covered, ok: false, why: 'un adversaire est collé à toi.' },
+        ],
+        rand,
+      ),
+      carrier,
+      cam: { at: carrier, toward: { x: carrier.x, z: carrier.z + 10 } },
+    };
+  }
+  return null;
+}
+
+function buildDuel(rand) {
+  // 1 contre 1 : l'attaquant arrive avec le palet. Bonne place = entre lui et le but.
+  const cx = (rand() - 0.5) * 12;
+  const cz = -4 - rand() * 8;
+  const c = { x: cx, z: cz };
+  const d = d2(c, OWN_NET) || 1;
+  const ux = (OWN_NET.x - c.x) / d;
+  const uz = (OWN_NET.z - c.z) / d;
+  const side = rand() < 0.5 ? -1 : 1;
+  const scn = {
+    mode: 'defense',
+    me: { x: c.x + ux * 7, z: c.z + uz * 7 },
+    teammates: [{ goalie: true, x: 0, z: -25.2 }],
+    opponents: [{ num: pick([9, 17, 22, 88], rand), x: c.x - ux * 2, z: c.z - uz * 2, to: c }],
+  };
+  return {
+    scn,
+    role: 'duel',
+    prompt: 'Le n°' + scn.opponents[0].num + ' arrive avec le palet : où te places-tu ?',
+    options: shuffle(
+      [
+        { x: c.x + ux * 3, z: c.z + uz * 3, ok: true, why: 'entre l’attaquant et ton but : il doit te passer pour tirer.' },
+        { x: c.x - uz * 3.2 * side, z: c.z + ux * 3.2 * side, ok: false, why: 'sur le côté : tu lui ouvres la route du but.' },
+        { x: c.x - ux * 2.5 + side * 1.5, z: c.z - uz * 2.5, ok: false, why: 'derrière lui : impossible de reprendre le palet.' },
+      ],
+      rand,
+    ),
+    cam: { at: { x: c.x + ux * 9, z: c.z + uz * 9 }, toward: c },
+  };
+}
+
+function buildMarquage(rand, pool) {
+  const scn = makeVariant(pick(pool, rand), rand);
+  const target = Number(String(scn.duty).split(':')[1]);
+  const opps = scn.opponents.filter((o) => !o.goalie && o.num != null);
+  return {
+    scn,
+    role: 'marquage',
+    prompt: 'L’adversaire a le palet : quel joueur dois-tu surveiller ? Touche-le.',
+    answerNum: target,
+    opps,
+    cam: { at: { x: scn.me.x * 0.6, z: Math.max(-24, scn.me.z - 7) }, toward: { x: 0, z: scn.me.z + 6 } },
+  };
+}
+
+function lisLeJeu(ctx) {
+  const { world, canvas, seg, rand, sfx, pool, defPool } = ctx;
+  const U = ui('🧠 Lis le jeu');
+  const st = { look: 0, canLook: false };
+  const stats = { reps: 0, hits: 0, times: [], roles: {} };
+  const roles = seg.roles || ['soutien', 'duel', 'marquage'];
+  const markPool = defPool.filter((x) => String(x.duty).startsWith('mark'));
+  let t = 0;
+  let trial = null;
+  let pause = 0;
+  let roleIdx = Math.floor(rand() * roles.length);
+  const ANIM = 1.5;
+
+  function newTrial() {
+    let tr = null;
+    for (let k = 0; k < roles.length && !tr; k++) {
+      const role = roles[roleIdx++ % roles.length];
+      if (role === 'soutien') tr = buildSoutien(rand, pool);
+      else if (role === 'duel') tr = buildDuel(rand);
+      else if (markPool.length) tr = buildMarquage(rand, markPool);
+    }
     world.clearActors();
-    st.look = 0;
-    const nums = shuffle([4, 7, 9, 11, 14, 17, 19, 22, 27, 88], rand).slice(0, seg.targets);
-    // Positions autour du joueur : au moins une derrière (plus de 110° de l'axe du regard).
-    const angles = [];
-    while (angles.length < seg.targets + 2) {
-      const a = (rand() * 2 - 1) * Math.PI;
-      if (angles.every((b) => Math.abs(wrap(a - b)) > 0.55)) angles.push(a);
+    const actors = [];
+    const add = (p, team) => {
+      const a = world.addActor({ team, num: p.num, goalie: p.goalie, pickable: tr.role === 'marquage' && !team && !p.goalie, hand: p.num % 2 ? 'L' : 'R' });
+      const to = finalPos(p);
+      a.setPos(p.x, p.z);
+      if (p.goalie) a.face(0, team ? 0 : 0);
+      actors.push({ a, from: { x: p.x, z: p.z }, to, goalie: p.goalie });
+      if (!team && (p.carrier || tr.role === 'duel') && !p.goalie) puckActor = a;
+    };
+    let puckActor = null;
+    for (const m of tr.scn.teammates) add(m, true);
+    for (const o of tr.scn.opponents) add(o, false);
+    if (tr.role === 'soutien') {
+      // le porteur (coéquipier) et toi (en jaune, là où tu es)
+      const c = world.addActor({ team: true, num: 10, hand: 'R' });
+      c.setPos(tr.carrier.x, tr.carrier.z);
+      c.face(0, 26);
+      puckActor = c;
     }
-    if (!angles.slice(0, seg.targets).some((a) => Math.abs(a) > 1.9)) angles[0] = (rand() < 0.5 ? 1 : -1) * (2.2 + rand() * 0.8);
-    const mates = nums.map((num, i) => {
-      const a = angles[i];
-      const d = 5 + rand() * 4;
-      const actor = world.addActor({ team: true, num, pickable: true, hand: i % 2 ? 'L' : 'R' });
-      actor.setPos(Math.sin(a) * d, Math.cos(a) * d);
-      actor.face(0, 0);
-      return { num, a };
-    });
-    for (let k = 0; k < 2; k++) {
-      const a = angles[seg.targets + k];
-      const o = world.addActor({ team: false, hand: k ? 'L' : 'R' });
-      o.setPos(Math.sin(a) * 6, Math.cos(a) * 6);
-      o.face(0, 0);
-    }
-    // La cible est de préférence derrière : on apprend à se retourner.
-    const behind = mates.filter((m) => Math.abs(m.a) > 1.9);
-    const target = pick(behind.length ? behind : mates, rand);
-    rep = { target: target.num, t: 0, done: false };
-    U.prompt(`Trouve le n°${target.num} et touche-le !`);
+    trial = { ...tr, actors, puckActor, t: 0, frozen: false, done: false, decideT: 0 };
+    // Cadrage : centré sur l'action (joueurs qui comptent + cibles), vu de derrière, assez haut.
+    const pts = [];
+    for (const x of actors) if (!x.goalie) pts.push(x.to);
+    if (tr.carrier) pts.push(tr.carrier);
+    if (tr.options) pts.push(...tr.options);
+    const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
+    const cz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
+    const ext = Math.min(9, Math.max(4, ...pts.map((p) => Math.hypot(p.x - cx, p.z - cz))));
+    const dir = tr.role === 'soutien' ? 1 : -1; // attaque : on regarde vers +z ; défense : vers notre but (-z)
+    trial.frame = { cx, cz, ext, dir };
+    world.puck.visible = true;
+    U.prompt('👀 Lis le jeu…');
     U.feedback('', true);
+    U.buttons([]);
   }
 
-  function finishRep(ok, text) {
-    rep.done = true;
+  function finish(ok, text) {
+    trial.done = true;
     stats.reps += 1;
+    stats.times.push(trial.decideT);
+    const r = (stats.roles[trial.role] = stats.roles[trial.role] || { reps: 0, hits: 0 });
+    r.reps += 1;
     if (ok) {
       stats.hits += 1;
-      stats.times.push(rep.t);
+      r.hits += 1;
       sfx.good();
     } else sfx.bad();
     U.feedback(text, ok);
     U.score(`✅ ${stats.hits} / ${stats.reps}`);
-    pause = 0.9;
+    pause = 2.2;
   }
 
   const detach = lookAndTap(canvas, world, st, (hit) => {
-    if (!rep || rep.done || !hit || hit.type !== 'pass') return;
-    if (hit.num === rep.target) finishRep(true, `✅ Trouvé en ${rep.t.toFixed(1).replace('.', ',')} s`);
-    else finishRep(false, `❌ C’était le n°${hit.num}. Cherche le n°${rep.target} !`);
+    if (!trial || !trial.frozen || trial.done || !hit) return;
+    if (trial.role === 'marquage' && hit.type === 'pass') {
+      const ok = hit.num === trial.answerNum;
+      finish(ok, ok ? `✅ Oui : le n°${trial.answerNum} n’était surveillé par personne.` : `❌ Le n°${hit.num} était déjà marqué. Le joueur oublié : le n°${trial.answerNum}.`);
+    } else if (hit.type === 'spot') {
+      const o = trial.options.find((x) => x.label === hit.id);
+      if (!o) return;
+      const good = trial.options.find((x) => x.ok);
+      finish(o.ok, o.ok ? `✅ ${o.label} : ${o.why}` : `❌ ${o.label} : ${o.why} Mieux : ${good.label}, ${good.why}`);
+    }
   });
 
-  speak('Coup d’œil ! Glisse ton doigt pour regarder partout, et touche le bon coéquipier.');
+  U.score('✅ 0 / 0');
   world.setStickVisible(false);
   world.setHolding(false);
-  world.puck.position.set(0, -5, 0);
-  U.score('✅ 0 / 0');
-  newRep();
+  newTrial();
 
   return {
     stats,
@@ -168,16 +292,49 @@ function coupDoeil(ctx) {
       U.timer(1 - t / seg.seconds);
       if (pause > 0) {
         pause -= dt;
-        if (pause <= 0 && t < seg.seconds) newRep();
-      } else if (rep && !rep.done) {
-        rep.t += dt;
-        U.rep(1 - rep.t / repLimit);
-        if (rep.t >= repLimit) finishRep(false, `⏱️ Trop tard ! Le n°${rep.target} était derrière toi.`);
+        if (pause <= 0 && t < seg.seconds) newTrial();
+      } else if (trial && !trial.frozen) {
+        trial.t += dt;
+        const k = Math.min(1, trial.t / ANIM);
+        const e = k * k * (3 - 2 * k);
+        for (const x of trial.actors) {
+          if (x.goalie) continue;
+          x.a.setPos(x.from.x + (x.to.x - x.from.x) * e, x.from.z + (x.to.z - x.from.z) * e);
+          if (Math.hypot(x.to.x - x.from.x, x.to.z - x.from.z) > 0.3) x.a.face(x.to.x + (x.to.x - x.from.x), x.to.z + (x.to.z - x.from.z));
+        }
+        if (k >= 1) {
+          trial.frozen = true;
+          U.prompt(`⏸️ ${trial.prompt}`);
+          if (trial.options) trial.options.forEach((o, i) => {
+            o.label = 'ABC'[i];
+            world.addMarker(o.x, o.z, o.label, '#ffd23f', trial.frame.dir > 0 ? Math.PI : 0);
+          });
+        }
+      } else if (trial && !trial.done) {
+        trial.decideT += dt;
+        U.rep(1 - trial.decideT / seg.decisionTime);
+        if (trial.decideT >= seg.decisionTime) finish(false, '⏱️ Trop tard : lis le jeu pendant que l’action avance, pour décider vite.');
       }
-      world.setView(0, 0, st.look, EYE);
+      // Palet chez le porteur
+      if (trial) {
+        if (trial.puckActor) {
+          const m = trial.puckActor.mesh;
+          world.puck.position.set(m.position.x + Math.sin(m.rotation.y) * 0.9, 0.02, m.position.z + Math.cos(m.rotation.y) * 0.9);
+        }
+        const c = world.camera;
+        const f = trial.frame;
+        const back = 3 + f.ext * 0.8;
+        const h = 4 + f.ext * 0.95;
+        c.up.set(0, 1, 0);
+        c.position.set(f.cx, h, f.cz - f.dir * back);
+        c.lookAt(f.cx, 0, f.cz + f.dir * 1.5);
+      }
       return t >= seg.seconds && pause <= 0;
     },
-    destroy: detach,
+    destroy() {
+      detach();
+      U.buttons([]);
+    },
   };
 }
 
@@ -377,7 +534,7 @@ function memoire(ctx) {
     me3.face(NET.x, NET.z);
 
     // Trois types de questions, en alternance.
-    const kind = pick(['where', 'where', 'free', 'count'], rand);
+    const kind = pick(['where', 'free', 'free'], rand);
     let question;
     let answers;
     let correct;
@@ -459,8 +616,10 @@ function memoire(ctx) {
   };
 }
 
+export { buildSoutien, buildDuel, buildMarquage };
+
 export function createDrill(kind, ctx) {
-  if (kind === 'coupdoeil') return coupDoeil(ctx);
+  if (kind === 'lecture' || kind === 'coupdoeil') return lisLeJeu(ctx);
   if (kind === 'arret') return arretSurImage(ctx);
   return memoire(ctx);
 }

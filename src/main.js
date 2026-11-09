@@ -1140,7 +1140,8 @@ function nextSegment() {
   const pool = SCENARIOS.filter((x) => x.level === S.base.id);
   world.showMe(false);
   world.setThirdPerson(false);
-  G.drill = createDrill(seg.drill, { world, canvas, seg, rand: Math.random, sfx, speak, pool, hand: G.hand });
+  const defPool = DEFENSE_SCENARIOS.filter((x) => x.level === S.base.id);
+  G.drill = createDrill(seg.drill, { world, canvas, seg, rand: Math.random, sfx, speak, pool, defPool, hand: G.hand });
   G.drill.kind = seg.drill;
   $('#drill-seg').textContent = label;
   sfx.whistle();
@@ -1170,11 +1171,12 @@ function showSessionEnd() {
   const st = S.stats;
   const lines = [];
   const tips = [];
-  if (st.coupdoeil) {
-    const c = st.coupdoeil;
-    const avg = c.times.length ? c.times.reduce((a, b) => a + b, 0) / c.times.length : 0;
-    lines.push(`👀 Coup d’œil : ${c.hits} / ${c.reps} trouvés${avg ? `, en ${avg.toFixed(1).replace('.', ',')} s en moyenne` : ''}`);
-    if (pct(c.hits, c.reps) < 70) tips.push('Tourne la tête plus tôt et plus souvent : regarde derrière toi avant même que le palet arrive.');
+  if (st.lecture) {
+    const c = st.lecture;
+    const names = { soutien: 'se proposer', duel: 'se placer en duel', marquage: 'qui surveiller' };
+    const parts = Object.entries(c.roles || {}).map(([k, v]) => `${names[k] || k} ${v.hits}/${v.reps}`);
+    lines.push(`🧠 Lis le jeu : ${c.hits} / ${c.reps}${parts.length ? ` (${parts.join(' · ')})` : ''}`);
+    if (pct(c.hits, c.reps) < 70) tips.push('Lis le jeu pendant que l’action avance : où est l’espace, où va l’adversaire, qui est oublié ?');
   }
   if (st.live) {
     const max = st.live.situations * 3;

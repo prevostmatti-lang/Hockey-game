@@ -765,6 +765,35 @@ export function createWorld(canvas) {
       while (actors.children.length) actors.remove(actors.children[0]);
       pickables = [netHit];
     },
+    /** Cible au sol (disque avec une lettre), touchable : pick = { type: 'spot', id }. */
+    addMarker(x, z, label, color = '#ffd23f', textRot = 0) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 128;
+      const g = c.getContext('2d');
+      g.fillStyle = color;
+      g.globalAlpha = 0.85;
+      g.beginPath();
+      g.arc(64, 64, 58, 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 1;
+      g.lineWidth = 8;
+      g.strokeStyle = '#fff';
+      g.stroke();
+      g.fillStyle = '#0b2545';
+      g.font = 'bold 72px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(label, 64, 68);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.Mesh(new THREE.CircleGeometry(1.25, 32), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+      m.rotation.set(-Math.PI / 2, 0, textRot); // lettre lisible depuis la caméra
+      m.position.set(x, 0.02, z);
+      m.userData.pick = { type: 'spot', id: label };
+      actors.add(m);
+      pickables.push(m);
+      return m;
+    },
     /** Ajoute un joueur ; renvoie un objet avec setPos(x, z). */
     addActor({ team, num, goalie, pickable, hand }) {
       const mesh = makePlayer({ team, num, goalie, hand });

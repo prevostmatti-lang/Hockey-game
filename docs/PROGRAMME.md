@@ -1,10 +1,31 @@
 # Programme « Tête haute ! » : 3 × 15 min par semaine, du 9 novembre 2026 à fin avril 2027
 
+## 0. Le fil conducteur : HEADspeed (Fédération suisse de hockey)
+
+La Fédération suisse (SIHF, concept SWISSMADEHOCKEY) classe le **HEADspeed**, la « vitesse de tête », parmi les qualités de vitesse de son *Star Profile*, avec Footspeed, Gapspeed, Puckspeed et Topspeed. Son cours en ligne « 3.1 HEADspeed – Travail intellectuel » (Markus Graf, U13-U17) le définit ainsi :
+- **lire son adversaire** : comment il bouge, à quelle vitesse, ce qu'il veut faire ;
+- **anticiper ses coéquipiers**, avec et sans palet : comment me proposer, que veut faire le porteur, où sont les autres ;
+- **interpréter les situations en espace réduit** : 1 contre 1, 1 contre 2, 2 contre 1… ;
+- **vouloir toutes les informations**, puis analyser et décider de façon **courageuse et déterminée** (*Read & React*) ;
+- **lire le jeu selon 4 rôles** : j'ai le palet, un coéquipier a le palet, mon adversaire direct a le palet, l'adversaire a le palet ;
+- **mémoriser la scène** et l'analyser après coup.
+
+### Ce que ça change dans le programme
+| Exercice | Bilan | Décision |
+|---|---|---|
+| Coup d'œil (tourner la tête pour trouver un numéro) | Une simple recherche visuelle, sans décision ni contexte de jeu. C'est justement le type d'exercice dont le transfert sur la glace n'est pas prouvé. | **Remplacé par « Lis le jeu »** |
+| **Lis le jeu** (nouveau) | L'action se joue puis se fige : on lit le jeu selon son **rôle** et on décide. Trois rôles : **soutien** (un coéquipier a le palet, où me proposer ?), **duel** (mon adversaire direct a le palet, où me placer ?) et **marquage** (l'adversaire a le palet, quel joueur surveiller ?). Chaque réponse est expliquée. | Gardé, en début de séance |
+| Situations de jeu | Le cœur du HEADspeed : lire, décider et agir en temps réel, avec et sans palet. | Gardé |
+| Arrêt sur image | *Read & React* : évaluer les options, décider vite, savoir **garder le palet** quand la ligne se ferme (inhibition). | Gardé |
+| Mémoire de glace | « Je mémorise la scène » : utile seulement avec des questions de jeu. | **Gardé, sans la question « combien d'adversaires ? »** : il reste « où était le n°… ? » et « qui était libre ? » |
+
+Sources : [cours HEADspeed de la SIHF](https://sihf-lernmodul.lernetz.site/module/headspeed?lang=fr) · [modules e-learning SIHF](https://www.sihf.ch/de/breitensport/trainerinnen-und-trainer/lehrmittel-und-nuetzliche-tools/e-learn-module/) · [concept FTEM / Star Profile (IIHF, webinaire SIHF)](https://kentico.iihf.com/IIHFMvc/media/Downloads/Webinars/Skills4all_7_Importance_of_Quality_on_Youth_Development_Programs.pdf)
+
 ## 1. Ce qu'il faut développer chez les 6-12 ans (et pourquoi)
 
 | Capacité | Ce que disent les sources | Comment le jeu la travaille |
 |---|---|---|
-| **Prise d'information (« scanning »)** | Hockey Canada fait du *shoulder check* une compétence essentielle à tous les postes : « vérifier tôt et souvent ». Côté USA Hockey, un exercice de shoulder check n'est utile que si le joueur a vraiment quelque chose à observer dans le jeu. | **Coup d'œil** : retrouver vite un coéquipier, souvent placé derrière soi. **Situations** : l'étoile « Radar » récompense le joueur qui a repéré ses coéquipiers *avant* de recevoir le palet. |
+| **Prise d'information (« scanning »)** | Hockey Canada fait du *shoulder check* une compétence essentielle à tous les postes : « vérifier tôt et souvent ». Côté USA Hockey, un exercice de shoulder check n'est utile que si le joueur a vraiment quelque chose à observer dans le jeu. | **Lis le jeu** : se proposer, se placer en duel, repérer le joueur à surveiller. **Situations** : l'étoile « Radar » récompense le joueur qui a repéré ses coéquipiers *avant* de recevoir le palet. |
 | **Décision** (passer, tirer, garder) | Les petits espaces et les jeux réduits multiplient les décisions et les touches de palet (USA Hockey, programme ADM). En Suède, le principe national n°6 est d'apprendre en jouant, de prendre des décisions seul et de découvrir le jeu. | **Situations de jeu** en temps réel et **Arrêt sur image**. |
 | **Inhibition** (retenir l'action prévue) | Chez des footballeurs de 12 à 19 ans, l'inhibition est liée à la performance en match. Exemple typique : on prévoit une passe, un adversaire coupe la ligne, il faut renoncer et changer de plan. | **Arrêt sur image**, avec des essais « stop » : un adversaire coupe la ligne au dernier moment et il faut **garder le palet**. Leur part augmente de 15 % à 35 % au fil des blocs. |
 | **Mémoire de travail** | Les fonctions exécutives se développent fortement entre 7 et 12 ans. Les sports collectifs y sont associés à une meilleure mémoire de travail. | **Mémoire de glace** : voir la scène 1 à 3 s, puis répondre de mémoire (où était le n°X, qui était libre, combien d'adversaires). |
@@ -21,8 +42,8 @@
 
 | Minutes | Partie | Objectif |
 |---|---|---|
-| 0-2 | 👀 **Coup d'œil** | Échauffement visuel : tourner la tête, repérer vite |
-| 2-11 | 🏒 **Situations de jeu** | Jouer et décider en temps réel, avec des variantes toujours nouvelles |
+| 0-3 | 🧠 **Lis le jeu** | L'action se fige : se proposer, se placer, qui surveiller (HEADspeed) |
+| 3-11 | 🏒 **Situations de jeu** | Jouer et décider en temps réel, avec des variantes toujours nouvelles |
 | 11-14 | ⏸️ **Arrêt sur image** ou 🧠 **Mémoire de glace** | Décider vite et savoir NE PAS faire la passe, ou mémoriser la scène |
 | 14-15 | 📋 **Bilan** | Résultats et conseil du jour |
 
@@ -48,7 +69,7 @@ Soit **22 semaines d'entraînement × 3 séances = 66 séances**, environ 16 h 3
 - Le temps pour décider dans l'Arrêt sur image passe de 6 s à 2,7 s.
 - Les défenseurs vont plus vite et mettent la pression plus tôt.
 - L'aide à la visée diminue.
-- Le Coup d'œil demande de repérer plus de joueurs, plus vite.
+- Lis le jeu : moins de temps pour répondre (de 6 s à 2,7 s).
 - Dans la Mémoire de glace, le temps pour regarder la scène passe de 3 s à 1,5 s.
 
 Chaque enfant choisit sa catégorie (U9, U11, U13), qui fixe le niveau de départ.

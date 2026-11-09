@@ -3,8 +3,8 @@
 //
 // Chaque semaine : séance A (attaque), séance B (défense), séance C (mixte : on change de rôle,
 // ce qui travaille la flexibilité cognitive). Chaque séance suit le même déroulé de 15 minutes :
-//   1. Coup d'œil (2 min)      : tourner la tête et repérer vite (prise d'information, « scanning »)
-//   2. Situations de jeu (9 min) : jouer et décider en temps réel, dans des situations toujours renouvelées
+//   1. Lis le jeu (3 min)      : l'action se fige, on décide selon son rôle (« HEADspeed », Fédération suisse)
+//   2. Situations de jeu (8 min) : jouer et décider en temps réel, dans des situations toujours renouvelées
 //   3. Lecture (3 min)          : « arrêt sur image » (décider vite, savoir NE PAS faire la passe = inhibition)
 //                                 ou « mémoire de glace » (mémoire de travail)
 //   4. Bilan (1 min)            : étoiles et conseil du jour
@@ -88,14 +88,15 @@ export function sessionPlan(week, letter) {
     focus: block.focus,
     segments: [
       {
-        drill: 'coupdoeil',
-        label: 'Coup d’œil',
-        seconds: 120,
-        // nombre de coéquipiers à repérer derrière soi, temps pour les trouver
-        targets: Math.min(4, 2 + Math.floor(d / 1.5)),
-        timeLimit: Math.max(2.5, 5 - d * 0.8),
+        drill: 'lecture',
+        label: 'Lis le jeu',
+        seconds: 180,
+        // rôles lus (HEADspeed) : soutien (coéquipier a le palet), duel (mon adversaire direct a le palet),
+        // marquage (l'adversaire a le palet)
+        roles: letter === 'A' ? ['soutien'] : letter === 'B' ? ['duel', 'marquage'] : ['soutien', 'duel', 'marquage'],
+        decisionTime: Math.max(2.5, 6 - d * 1.1),
       },
-      { drill: 'live', label: 'Situations de jeu', seconds: 540, mode: info.mode },
+      { drill: 'live', label: 'Situations de jeu', seconds: 480, mode: info.mode },
       {
         drill: reading,
         label: reading === 'arret' ? 'Arrêt sur image' : 'Mémoire de glace',
