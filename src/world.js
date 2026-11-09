@@ -292,7 +292,7 @@ function numberSprite(num, color) {
   g.strokeStyle = '#fff';
   g.stroke();
   g.fillStyle = '#fff';
-  g.font = 'bold 64px system-ui, sans-serif';
+  g.font = `bold ${String(num).length > 2 ? 40 : 64}px system-ui, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText(String(num), 64, 68);
@@ -418,7 +418,7 @@ function makeStick({ hand = 'R', goalie = false } = {}) {
   return g;
 }
 
-function makePlayer({ team, num, goalie, hand = 'R' }) {
+function makePlayer({ team, num, goalie, hand = 'R', me = false }) {
   const g = new THREE.Group();
   const jerseyColor = team ? COLORS.team : COLORS.opp;
   const jersey = std(jerseyColor);
@@ -502,7 +502,7 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
   g.userData.anim = { body, legs, phase: Math.random() * 6, last: null };
 
   if (num != null) {
-    const label = numberSprite(num, team ? '#1e66f5' : '#e5484d');
+    const label = numberSprite(num, me ? '#e0a800' : team ? '#1e66f5' : '#e5484d');
     label.position.y = 2.15;
     g.add(label);
   }
@@ -795,8 +795,14 @@ export function createWorld(canvas) {
       return m;
     },
     /** Ajoute un joueur ; renvoie un objet avec setPos(x, z). */
-    addActor({ team, num, goalie, pickable, hand }) {
-      const mesh = makePlayer({ team, num, goalie, hand });
+    addActor({ team, num, goalie, pickable, hand, me }) {
+      const mesh = makePlayer({ team, num: me ? 'TOI' : num, goalie, hand, me });
+      if (me) {
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 32), new THREE.MeshBasicMaterial({ color: 0xffd23f, depthWrite: false }));
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.012;
+        mesh.add(ring);
+      }
       mesh.rotation.y = team ? 0 : Math.PI;
       actors.add(mesh);
       if (pickable) {

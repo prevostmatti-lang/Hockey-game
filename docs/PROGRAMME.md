@@ -77,6 +77,7 @@ Chaque enfant choisit sa catégorie (U9, U11, U13), qui fixe le niveau de dépar
 ## 4. Dans l'appli
 - Menu → **📅 Mon programme** : la semaine en cours, ses 3 séances (cochées une fois faites), le choix de la catégorie et le calendrier complet.
 - La progression est enregistrée **sur l'appareil** uniquement, sans compte (RGPD mineurs).
+- **Règles respectées** : le hors-jeu est sifflé (un attaquant ne doit pas entrer dans la zone adverse avant le palet). Les coéquipiers attendent à la ligne bleue, puis entrent quand le palet passe. Dans « Lis le jeu », le joueur de l'enfant est marqué **TOI** (anneau jaune) et la question nomme le porteur du palet.
 - Ajouter `?rapide` à l'adresse lance des séances accélérées d'environ 1 min, pour les montrer aux éducateurs.
 
 ## 5. Sources

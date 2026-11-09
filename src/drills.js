@@ -120,6 +120,8 @@ function buildSoutien(rand, pool) {
       const r = 5 + rand() * 8;
       const p = { x: carrier.x + Math.sin(a) * r, z: carrier.z + Math.cos(a) * r };
       if (Math.abs(p.x) > 11 || p.z > 23 || p.z < -20) continue;
+      // Hors-jeu : si le porteur n'est pas encore dans la zone, on ne peut pas l'y attendre.
+      if (carrier.z < 7.5 && p.z > 7.2) continue;
       const lane = Math.min(...opps.map((o) => segD(o, carrier, p)));
       const space = Math.min(...opps.map((o) => d2(o, p)));
       cands.push({ ...p, lane, space });
@@ -132,7 +134,8 @@ function buildSoutien(rand, pool) {
     return {
       scn,
       role: 'soutien',
-      prompt: 'Ton coéquipier a le palet : où te proposes-tu ?',
+      prompt: 'Le n°10 a le palet. TOI (anneau jaune) : où te proposes-tu ?',
+      me: { x: carrier.x + (carrier.x > 0 ? -3.5 : 3.5), z: carrier.z - 2.5 },
       options: shuffle(
         [
           { ...good, ok: true, why: 'ligne de passe libre et de l’espace autour de toi.' },
@@ -159,14 +162,15 @@ function buildDuel(rand) {
   const side = rand() < 0.5 ? -1 : 1;
   const scn = {
     mode: 'defense',
-    me: { x: c.x + ux * 7, z: c.z + uz * 7 },
+    me: { x: c.x + ux * 5.5 + uz * 1.8 * side, z: c.z + uz * 5.5 - ux * 1.8 * side },
     teammates: [{ goalie: true, x: 0, z: -25.2 }],
     opponents: [{ num: pick([9, 17, 22, 88], rand), x: c.x - ux * 2, z: c.z - uz * 2, to: c }],
   };
   return {
     scn,
     role: 'duel',
-    prompt: 'Le n°' + scn.opponents[0].num + ' arrive avec le palet : où te places-tu ?',
+    prompt: 'Le n°' + scn.opponents[0].num + ' arrive avec le palet. TOI (anneau jaune) : où te places-tu ?',
+    me: scn.me,
     options: shuffle(
       [
         { x: c.x + ux * 3, z: c.z + uz * 3, ok: true, why: 'entre l’attaquant et ton but : il doit te passer pour tirer.' },
@@ -186,7 +190,8 @@ function buildMarquage(rand, pool) {
   return {
     scn,
     role: 'marquage',
-    prompt: 'L’adversaire a le palet : quel joueur dois-tu surveiller ? Touche-le.',
+    prompt: 'L’adversaire a le palet. TOI (anneau jaune) : quel joueur dois-tu surveiller ? Touche-le.',
+    me: scn.me,
     answerNum: target,
     opps,
     cam: { at: { x: scn.me.x * 0.6, z: Math.max(-24, scn.me.z - 7) }, toward: { x: 0, z: scn.me.z + 6 } },
@@ -199,7 +204,8 @@ function lisLeJeu(ctx) {
   const st = { look: 0, canLook: false };
   const stats = { reps: 0, hits: 0, times: [], roles: {} };
   const roles = seg.roles || ['soutien', 'duel', 'marquage'];
-  const markPool = defPool.filter((x) => String(x.duty).startsWith('mark'));
+  // Marquage : seulement les situations où le palet est déjà dans notre zone (pas de hors-jeu).
+  const markPool = defPool.filter((x) => String(x.duty).startsWith('mark') && x.opponents.some((o) => o.carrier && o.z <= -7.5));
   let t = 0;
   let trial = null;
   let pause = 0;
@@ -227,6 +233,11 @@ function lisLeJeu(ctx) {
     let puckActor = null;
     for (const m of tr.scn.teammates) add(m, true);
     for (const o of tr.scn.opponents) add(o, false);
+    // Toi : anneau jaune et « TOI » au-dessus de la tête
+    const meA = world.addActor({ team: true, me: true, hand: ctx.hand || 'R' });
+    meA.setPos(tr.me.x, tr.me.z);
+    if (tr.role === 'soutien') meA.face(tr.me.x, tr.me.z + 5);
+    else meA.face(tr.me.x, tr.me.z + 5 * (tr.role === 'duel' || tr.role === 'marquage' ? 1 : -1));
     if (tr.role === 'soutien') {
       // le porteur (coéquipier) et toi (en jaune, là où tu es)
       const c = world.addActor({ team: true, num: 10, hand: 'R' });
@@ -239,11 +250,12 @@ function lisLeJeu(ctx) {
     const pts = [];
     for (const x of actors) if (!x.goalie) pts.push(x.to);
     if (tr.carrier) pts.push(tr.carrier);
+    pts.push(tr.me);
     if (tr.options) pts.push(...tr.options);
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
     const ext = Math.min(9, Math.max(4, ...pts.map((p) => Math.hypot(p.x - cx, p.z - cz))));
-    const dir = tr.role === 'soutien' ? 1 : -1; // attaque : on regarde vers +z ; défense : vers notre but (-z)
+    const dir = tr.role === 'soutien' || tr.role === 'duel' ? 1 : -1; // attaque : on regarde vers +z ; défense : vers notre but (-z)
     trial.frame = { cx, cz, ext, dir };
     world.puck.visible = true;
     U.prompt('👀 Lis le jeu…');
@@ -327,7 +339,7 @@ function lisLeJeu(ctx) {
         const h = 4 + f.ext * 0.95;
         c.up.set(0, 1, 0);
         c.position.set(f.cx, h, f.cz - f.dir * back);
-        c.lookAt(f.cx, 0, f.cz + f.dir * 1.5);
+        c.lookAt(f.cx, 0, f.cz + f.dir * (1.5 + f.ext * 0.45)); // l'action un peu plus bas : la question occupe le haut de l'écran
       }
       return t >= seg.seconds && pause <= 0;
     },

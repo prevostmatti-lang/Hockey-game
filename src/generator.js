@@ -49,6 +49,16 @@ function transform(scn, { mirror, dx, dz, jitter, numbers }, rand) {
     opponents: scn.opponents.map((o) => moved(o)),
   };
   if (scn.passer) out.passer = moved(scn.passer);
+  // Pas de hors-jeu : si le porteur est avant la ligne bleue, ses coéquipiers l'attendent à la ligne.
+  const B = 7.5;
+  const clampZ = (p, lim, side) => {
+    const f = (o) => (o ? { ...o, z: side > 0 ? Math.min(o.z, lim) : Math.max(o.z, lim) } : o);
+    return { ...f(p), to: p.to ? f(p.to) : undefined };
+  };
+  // (En défense, c'est la simulation qui fait attendre les attaquants à la ligne : leur course continue ensuite.)
+  if ((!scn.mode || scn.mode === 'attack') && out.me.z < B) {
+    out.teammates = out.teammates.map((t) => (t.goalie ? t : clampZ(t, B - 0.3, 1)));
+  }
   if (scn.expect) out.expect = remapRef(scn.expect, numbers);
   if (scn.duty) out.duty = remapRef(scn.duty, numbers);
   if (scn.mission) out.mission = scn.mission.replace(/n°(\d+)/g, (m, n) => (numbers.has(Number(n)) ? `n°${numbers.get(Number(n))}` : m));

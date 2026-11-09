@@ -341,6 +341,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
   // ---------- déplacements ----------
   function moveTo(a, target, speed, dt) {
     speed *= PACE;
+    target = onside(a, target);
     const dx = target.x - a.x;
     const dz = target.z - a.z;
     const d = Math.hypot(dx, dz);
@@ -354,6 +355,35 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     a.vz = (dz / d) * (step / dt);
     a.x += (dx / d) * step;
     a.z += (dz / d) * step;
+  }
+
+  // ---------- hors-jeu ----------
+  // Ligne bleue offensive : z = +7,5 pour notre équipe (qui attaque vers +z), z = -7,5 pour l'adversaire.
+  // Un joueur sans palet ne doit pas entrer dans la zone offensive avant le palet : il attend à la ligne.
+  const BLUE = 7.5;
+  function puckZ() {
+    const p = s.puck;
+    return p.owner ? p.owner.z : p.z;
+  }
+  function onside(a, target) {
+    if (a.goalie || a.isMe || s.puck.owner === a) return target;
+    const pz = puckZ();
+    if (a.team && pz < BLUE && target.z > BLUE - 0.3) return { x: target.x, z: BLUE - 0.3 };
+    if (!a.team && pz > -BLUE && target.z < -BLUE + 0.3) return { x: target.x, z: -BLUE + 0.3 };
+    return target;
+  }
+  /** Le palet vient d'entrer dans une zone offensive : un attaquant sans palet y était-il déjà ? */
+  function checkOffside(prevZ) {
+    const z = puckZ();
+    const owner = s.puck.owner;
+    const players = [me, ...actors.filter((a) => !a.goalie)];
+    if (prevZ < BLUE && z >= BLUE) {
+      const off = players.find((a) => a.team && a !== owner && a.z > BLUE + 0.4);
+      if (off) end('offside', { team: true, num: off.isMe ? null : off.num, isMe: !!off.isMe });
+    } else if (prevZ > -BLUE && z <= -BLUE) {
+      const off = players.find((a) => !a.team && a !== owner && a.z < -BLUE - 0.4);
+      if (off) end('offside', { team: false, num: off.num });
+    }
   }
 
   function confine(a) {
@@ -493,7 +523,12 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       return;
     }
     if (!p.owner && Math.hypot(p.vx, p.vz) < 1.5 && dist(a, p) < dist(me, p) && dist(a, p) < 8) moveTo(a, p, MATE_SPEED, dt);
-    else moveTo(a, a.role === 'passer' ? a.start : a.to, MATE_SPEED, dt);
+    else {
+      let target = a.role === 'passer' ? a.start : a.to;
+      // Une fois le palet entré dans la zone, l'ailier qui attendait à la ligne bleue rentre à son tour.
+      if (a.role === 'support' && puckZ() >= BLUE && target.z > 5 && target.z < BLUE) target = { x: target.x, z: target.z + 6 };
+      moveTo(a, target, MATE_SPEED, dt);
+    }
     a.face = angleTo(a, p);
   }
 
@@ -860,7 +895,9 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       const want = Math.abs(wrap(va - a.face)) < 2.1 ? va : wrap(va + Math.PI);
       a.face = want;
     }
+    const prevPuckZ = puckZ();
     stepPuck(dt);
+    if (!s.over) checkOffside(prevPuckZ);
     stepSteal(dt);
     if (defense && !s.over) {
       const st = dutyState();

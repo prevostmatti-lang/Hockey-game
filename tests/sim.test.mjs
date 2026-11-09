@@ -213,3 +213,26 @@ test('changement de sens avant ↔ arrière quasi immédiat', () => {
   }
   assert.ok(t < 0.3, `repart en avant en ${t.toFixed(2)} s`);
 });
+
+test('hors-jeu : les coéquipiers attendent le palet à la ligne bleue, et entrer avant lui est sifflé', async () => {
+  const { SCENARIOS: ALL, DEFENSE_SCENARIOS } = await import('../src/scenarios.js');
+  // Aucune situation ne démarre en hors-jeu à la décision (positions finales)
+  for (const s of ALL) {
+    if (s.me.z < 7.5) for (const t of s.teammates) assert.ok((t.to || t).z <= 7.5, `${s.id} : n°${t.num} hors-jeu`);
+  }
+  // Le joueur qui entre seul dans la zone avant le palet porté par un coéquipier : hors-jeu
+  const sim = createSim(scn('u11-3'), U11, 'R', () => 0.5);
+  waitPuck(sim);
+  const mate = sim.state.actors.find((a) => a.num === 4);
+  sim.release(angleTo(sim.blade(sim.state.me), mate), 0.4);
+  for (let i = 0; i < 2 / DT && sim.state.puck.owner !== mate; i++) sim.step(DT, {});
+  // je fonce dans la zone pendant que le n°4 a le palet en zone neutre
+  sim.state.me.x = 0; sim.state.me.z = 10;
+  Object.assign(sim.state.puck, { owner: null, x: -11, z: 6.5, vx: 0, vz: 6, team: true, releasedBy: mate, releaseT: sim.state.t, shot: false });
+  for (let i = 0; i < 1 / DT && !sim.state.over; i++) sim.step(DT, {});
+  assert.equal(sim.state.over?.type, 'offside');
+  // En défense, les attaquants attendent que le porteur entre dans la zone
+  const d = createSim(DEFENSE_SCENARIOS.find((x) => x.id === 'd-u11-1'), U11, 'R', () => 0.5);
+  for (let i = 0; i < 6 / DT && !d.state.over; i++) d.step(DT, {});
+  assert.notEqual(d.state.over?.type, 'offside');
+});

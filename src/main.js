@@ -655,6 +655,7 @@ const OUTCOMES = {
   mateStolen: '😬 Palet perdu !',
   lost: '😬 Palet perdu !',
   time: '⏱️ Temps écoulé !',
+  offside: '🚩 Hors-jeu !',
   recovered: '💪 Palet récupéré !',
   goalAgainst: '😬 But encaissé !',
   saveUs: '🧤 Arrêt de ton gardien !',
@@ -699,6 +700,11 @@ function outcomeText(st) {
       return [`😬 Le n°${n} s’est fait prendre le palet.`, ''];
     case 'time':
       return ['⏱️ Temps écoulé.', 'Il faut jouer plus vite : regarde, décide, joue !'];
+    case 'offside':
+      return [
+        o.isMe ? '🚩 Hors-jeu : tu étais dans la zone avant le palet.' : `🚩 Hors-jeu : le n°${o.num} était dans la zone avant le palet.`,
+        'Règle du hors-jeu : un attaquant ne doit pas entrer dans la zone offensive (après la ligne bleue) avant le palet. Attends-le à la ligne, ou entre en même temps que lui.',
+      ];
     default:
       return ['😬 Palet perdu.', ''];
   }
@@ -726,6 +732,8 @@ function defenseOutcome(o) {
       return ['😅 L’attaquant a tiré à côté.', 'Essaie de récupérer le palet avant le tir.'];
     case 'time':
       return ['⏱️ Tu as tenu jusqu’au bout !', ''];
+    case 'offside':
+      return ['🚩 Hors-jeu de l’adversaire : l’action est arrêtée.', ''];
     default:
       return ['Fin de l’action.', ''];
   }
@@ -739,7 +747,7 @@ function showDefenseResult() {
   const ownAction = o.type === 'recovered' && ['poke', 'intercept', 'block'].includes(o.how);
   const placement = ratio >= 0.55 || ownAction;
   // Le gardien qui arrête le tir ne compte pas : c'est au joueur de récupérer le palet.
-  const zero = o.type === 'recovered' || o.type === 'time';
+  const zero = o.type === 'recovered' || o.type === 'time' || o.type === 'offside';
   const stars = [radar, placement, zero].filter(Boolean).length;
   G.results[G.index] = stars;
 
