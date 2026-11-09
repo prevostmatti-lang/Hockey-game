@@ -845,6 +845,16 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     s.t += dt;
     stepMe(dt, input);
     for (const a of actors) (a.team ? mateAI : oppAI)(a, dt);
+    // Les joueurs patinent dans le sens de leur déplacement (et non de côté en regardant le palet) :
+    // en avant, ou à reculons si leur cible est derrière eux (défenseur qui recule face au jeu).
+    for (const a of actors) {
+      if (a.goalie || s.puck.owner === a) continue;
+      const sp = Math.hypot(a.vx, a.vz);
+      if (sp < 0.8) continue;
+      const va = Math.atan2(a.vx, a.vz);
+      const want = Math.abs(wrap(va - a.face)) < 2.1 ? va : wrap(va + Math.PI);
+      a.face = want;
+    }
     stepPuck(dt);
     stepSteal(dt);
     if (defense && !s.over) {
