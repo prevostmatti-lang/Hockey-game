@@ -208,6 +208,7 @@ const LOOK_SENS = 1.3; // glisser sur toute la largeur de l'écran = tourner la 
 const FULL_SPEED_PX = 62; // pouce à 62 px du point de départ = vitesse maximale
 const TURN_PX = 95; // écart horizontal du pouce pour la rotation maximale
 const BACK_PX = 26; // il faut descendre d'au moins 26 px sous le point de départ pour reculer
+const SWITCH_MS = 400; // … et y rester 0,4 s (idem pour repartir en avant)
 let lookId = null;
 let headLook = 0;
 const DEG = Math.PI / 180;
@@ -256,11 +257,22 @@ function readStick(sp) {
   //    (plus de BACK_PX, et plus bas que de côté) ;
   //  - on repasse en marche avant dès que le pouce remonte au-dessus du point de départ ;
   //  - entre les deux (pouce sur le côté), on garde le sens en cours.
+  //  - et il faut GARDER le pouce dans l'autre sens pendant SWITCH_MS pour changer (un anneau se remplit).
   let back = sp.back || false;
-  if (!back && dy > BACK_PX && dy > Math.abs(dx) * 0.6) back = true;
-  else if (back && dy < -4) back = false;
+  const wantSwitch = back ? dy < -4 : dy > BACK_PX && dy > Math.abs(dx) * 0.6;
+  const now = performance.now();
+  let pending = 0;
+  if (wantSwitch) {
+    if (!sp.switchT) sp.switchT = now;
+    pending = Math.min(1, (now - sp.switchT) / SWITCH_MS);
+    if (pending >= 1) {
+      back = !back;
+      sp.switchT = 0;
+      pending = 0;
+    }
+  } else sp.switchT = 0;
   sp.back = back;
-  return { zone: back ? 'back' : 'push', theta, dx, dy };
+  return { zone: back ? 'back' : 'push', theta, dx, dy, pending };
 }
 
 function updateInput() {
@@ -305,6 +317,9 @@ function showStick(sp, st) {
   const k = Math.min(1, 46 / r);
   $('#stick-knob').style.transform = `translate(${st.dx * k}px, ${st.dy * k}px)`;
   el.dataset.zone = st.zone;
+  // Anneau de progression pendant le changement de sens
+  el.style.setProperty('--pending', `${Math.round((st.pending || 0) * 360)}deg`);
+  el.dataset.pending = st.pending > 0 ? (st.zone === 'back' ? 'fwd' : 'back') : '';
   $('#stick-knob').textContent = st.zone === 'back' ? '⬇' : '';
 }
 

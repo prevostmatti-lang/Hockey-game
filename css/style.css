@@ -1032,7 +1032,8 @@ p {
 }
 #puck-ind[data-side='back'] {
   left: 50%;
-  bottom: max(70px, calc(env(safe-area-inset-bottom) + 60px));
+  bottom: auto;
+  top: 30%; /* au-dessus de la zone du pouce, pour ne pas cacher le joystick */
   transform: translateX(-50%);
   animation: none;
 }
@@ -1128,4 +1129,19 @@ p {
   background: repeating-conic-gradient(from 0deg at 50% 55%, rgba(255, 255, 255, 0.55) 0deg 0.6deg, transparent 0.6deg 7deg);
   -webkit-mask-image: radial-gradient(ellipse at 50% 55%, transparent 45%, #000 85%);
   mask-image: radial-gradient(ellipse at 50% 55%, transparent 45%, #000 85%);
+}
+
+/* Changement de sens en cours : anneau qui se remplit autour du joystick */
+#stick[data-pending='back'],
+#stick[data-pending='fwd'] {
+  border-color: transparent;
+  background:
+    radial-gradient(circle, rgba(11, 37, 69, 0.18) 60%, transparent 61%),
+    conic-gradient(var(--ring) var(--pending), rgba(255, 255, 255, 0.35) 0);
+}
+#stick[data-pending='back'] {
+  --ring: #f07a00;
+}
+#stick[data-pending='fwd'] {
+  --ring: #1fa35c;
 }
