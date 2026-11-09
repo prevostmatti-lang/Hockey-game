@@ -52,22 +52,85 @@ export const SHOT_ZONES = [
 ];
 
 /**
- * Le gardien couvre-t-il le point (x, y) de sa cage ? Debout : le corps et les bras couvrent le
- * milieu, les quatre coins et l'espace entre les jambières sont ouverts. En papillon (à genoux,
- * jambières écartées au sol) : tout le bas est fermé, les coins hauts sont ouverts.
+ * Style du gardien, tiré au hasard à chaque nouvelle possession (il se replace) : les espaces
+ * ouverts changent d'une action à l'autre, on ne peut pas les apprendre par cœur.
+ *   glove   : côté de la mitaine dans la cage (x du tireur ; -1 = gardien « normal » qui attrape
+ *             de la main gauche, vu de face c'est à droite du tireur)
+ *   gloveHigh / blockerHigh : bras hauts (coin haut fermé) ou à mi-hauteur (coin haut ouvert)
+ *   five    : jambières écartées (entre les jambières ouvert)
+ *   stick   : crosse bien au sol, côté bouclier (coin bas côté bouclier fermé)
+ *   padWide : jambière côté mitaine très ouverte (coin bas côté mitaine fermé)
+ *   cheat   : collé au poteau proche (> 0 : le côté éloigné s'ouvre) ou trop au centre (< 0)
  */
-export function goalieCovers(keeper, x, y, scale = 1) {
-  const rx = Math.abs(x - keeper.x) / scale;
-  if (keeper.butterfly) {
-    if (y < 0.36 && rx < 0.86) return true; // jambières au sol
-    if (y < 0.86 && rx < 0.36) return true; // corps
-    if (y > 0.4 && y < 0.8 && rx < 0.56) return true; // bras, mitaine, bouclier
-    return false;
+export function rollGoalieStyle(rand = Math.random) {
+  const st = {
+    glove: rand() < 0.8 ? -1 : 1,
+    gloveHigh: rand() < 0.5,
+    blockerHigh: rand() < 0.4,
+    five: rand() < 0.5,
+    stick: rand() < 0.4,
+    padWide: rand() < 0.3,
+    cheat: -0.05 + rand() * 0.4,
+  };
+  // Debout, face au but : au moins un coin reste ouvert (le gardien n'est pas un mur).
+  const corners = [
+    [0.6, 0.92],
+    [-0.6, 0.92],
+    [0.6, 0.13],
+    [-0.6, 0.13],
+  ];
+  if (corners.every(([x, y]) => goalieCovers({ x: 0, style: st }, x, y))) {
+    const k = Math.floor(rand() * 4);
+    if (k === 0 || k === 1) (corners[k][0] * st.glove > 0 ? (st.gloveHigh = false) : (st.blockerHigh = false));
+    else corners[k][0] * st.glove > 0 ? (st.padWide = false) : (st.stick = false);
   }
-  if (y < 0.22 && rx < 0.1) return false; // entre les jambières
-  if (y < 1.05 && rx < 0.42) return true; // corps et jambières
-  if (y > 0.45 && y < 0.95 && rx < 0.6) return true; // bras
-  return false;
+  return st;
+}
+
+/**
+ * Silhouette du gardien vue de face : rectangles [x0, x1, y0, y1], x relatif au gardien
+ * (dans le repère du tireur : x positif = à gauche à l'écran). Sert au calcul ET au dessin.
+ * Debout : corps et jambières au milieu, bras selon le style. Papillon (palet tout près) :
+ * tout le bas fermé. Palet sur le côté, tout près : il colle le poteau proche (tout ce côté fermé,
+ * le haut du côté éloigné ouvert).
+ */
+export function goalieShape(keeper) {
+  const st = keeper.style || { glove: -1, gloveHigh: false, blockerHigh: false, five: true, stick: false, padWide: false };
+  const g = st.glove;
+  const side = (a, b, sgn) => (sgn > 0 ? [a, b] : [-b, -a]);
+  const R = [];
+  if (keeper.post) {
+    const n = keeper.post; // côté du poteau proche
+    R.push([...side(-0.15, 1.0, n), 0, 1.2]); // collé au poteau : tout le côté proche
+    R.push([...side(0, 1.6, -n), 0, 0.3]); // jambière au sol jusqu'au poteau éloigné
+    R.push([...side(0, 0.38, -n), 0, 0.9]); // corps
+    R.push([...side(0.38, 0.6, -n), 0.4, 0.8]); // bras côté éloigné
+    return R;
+  }
+  if (keeper.butterfly) {
+    R.push([-0.86, 0.86, 0, 0.36]); // jambières au sol
+    R.push([-0.36, 0.36, 0, 0.86]); // corps
+    // Bras : l'un des deux peut fermer son coin haut, jamais les deux (en papillon, on tire haut).
+    const gHigh = st.gloveHigh;
+    const bHigh = st.blockerHigh && !st.gloveHigh;
+    R.push([...side(0.36, gHigh ? 0.72 : 0.56, g), gHigh ? 0.5 : 0.4, gHigh ? 1.05 : 0.8]); // mitaine
+    R.push([...side(0.36, bHigh ? 0.7 : 0.56, -g), bHigh ? 0.5 : 0.4, bHigh ? 1.02 : 0.8]); // bouclier
+    return R;
+  }
+  const gap = st.five || keeper.moving ? 0.08 : 0; // en déplacement latéral, les jambières s'écartent
+  R.push([-0.42, -gap, 0, 0.24], [gap, 0.42, 0, 0.24]); // jambières
+  R.push([-0.42, 0.42, 0.22, 1.05]); // corps
+  R.push([...side(0.42, 0.74, g), st.gloveHigh ? 0.6 : 0.4, st.gloveHigh ? 1.12 : 0.84]); // mitaine
+  R.push([...side(0.42, 0.64, -g), st.blockerHigh ? 0.55 : 0.32, st.blockerHigh ? 1.0 : 0.76]); // bouclier
+  if (st.stick) R.push([...side(0.4, 0.8, -g), 0, 0.2]); // crosse au sol
+  if (st.padWide) R.push([...side(0.4, 0.78, g), 0, 0.24]); // jambière tendue
+  return R;
+}
+
+/** Le gardien couvre-t-il le point (x, y) de sa cage ? */
+export function goalieCovers(keeper, x, y, scale = 1) {
+  const rx = (x - keeper.x) / scale;
+  return goalieShape(keeper).some(([x0, x1, y0, y1]) => rx >= x0 && rx <= x1 && y >= y0 && y <= y1);
 }
 
 /**
@@ -81,7 +144,8 @@ export function zoneStatus(keeper, from = null, reach = 0, skaters = [], size = 
     const x = z.five ? keeper.x : z.x;
     let xAt = x;
     let yAt = z.y;
-    if (from && Math.abs(netZ - from.z) > 0.5) {
+    // Collé au poteau, le gardien est sur sa ligne de but : pas de projection.
+    if (from && !keeper.post && Math.abs(netZ - from.z) > 0.5) {
       const k = (keeper.z - from.z) / (netZ - from.z);
       xAt = from.x + (x - from.x) * k;
       yAt = 0.03 + (z.y - 0.03) * k; // le palet monte : il est un peu plus bas en passant devant le gardien
@@ -102,13 +166,8 @@ export function zoneStatus(keeper, from = null, reach = 0, skaters = [], size = 
   });
 }
 
-/** Distance que le gardien peut parcourir avant qu'un tir (≈ 24 m/s) parti de `from` n'arrive. */
-function goalieReach(keeper, from, level) {
-  if (!from) return 0;
-  const netZ = keeper.z > 0 ? GOAL_Z : -GOAL_Z;
-  const t = Math.hypot(from.x, netZ - from.z) / 24 - (level.goalieReaction ?? 0.2);
-  return Math.max(0, t) * (level.goalie ?? 2.5);
-}
+// Les cibles montrent ce qui est ouvert MAINTENANT (ce que l'enfant voit). Si le gardien a le
+// temps de glisser (tir de loin, tir lent), c'est la simulation qui le montre : arrêt.
 
 /** Vitesse verticale pour que le palet arrive à la hauteur h après une distance d. */
 function liftFor(d, speed, h, y0 = 0.03) {
@@ -551,7 +610,10 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     } else {
       const d = Math.hypot(p.x, netZ - p.z) || 1;
       tx = (p.x / d) * 0.8;
+      // Selon son style, il colle plus ou moins le poteau proche (le côté éloigné s'ouvre).
+      if (a.style && Math.abs(p.x) > 1) tx += Math.sign(p.x) * a.style.cheat * Math.min(1, Math.abs(p.x) / 5);
     }
+    if (a.post && !reacting) tx = a.post * 0.75; // collé au poteau proche
     tx = clamp(tx, -0.8, 0.8);
     const step = clamp(tx - a.x, -speed * dt, speed * dt);
     a.x += step;
@@ -559,7 +621,18 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     a.face = angleTo(a, p);
     // Le palet est tout près : le gardien se met en papillon (tout le bas fermé, les coins hauts ouverts).
     // Posture : en papillon quand le palet est tout près ; elle ne change pas pendant un tir.
-    if (!(p.shot && !p.owner)) a.butterfly = Math.hypot(p.x, netZ - p.z) < 8.5;
+    // Nouvelle possession : le gardien se replace, avec un style tiré au hasard.
+    if (p.owner && p.owner !== a.lastOwner) {
+      a.lastOwner = p.owner;
+      a.style = rollGoalieStyle(rand);
+    }
+    if (!(p.shot && !p.owner)) {
+      const close = Math.hypot(p.x, netZ - p.z);
+      a.butterfly = close < 8.5;
+      // Palet sur le côté, tout près (angle fermé) : il colle le poteau proche.
+      a.post = close < 6 && Math.abs(p.x) > 3 ? Math.sign(p.x) : 0;
+      a.moving = Math.abs(a.vx) > 0.6;
+    }
   }
 
   function oppAI(a, dt) {
@@ -954,7 +1027,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     let shotPoint = null;
 
     if (opts.zone && goalie) {
-      zone = zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).find((z) => z.id === opts.zone);
+      zone = zoneStatus(goalie, from, 0, actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).find((z) => z.id === opts.zone);
     } else {
       // Vers le but ? Petite assistance : on ramène le tir vers la cible ouverte la plus proche.
       const f = fwd(aim);
@@ -966,7 +1039,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
         if (Math.abs(xCross) < tol && !mateCloser) {
           isShot = true;
           const snap = 0.35 + assist * 2; // rayon de l'aide : grand en U9, petit en U13
-          const open = goalie ? zoneStatus(goalie, from, goalieReach(goalie, from, level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).filter((z) => z.open) : [];
+          const open = goalie ? zoneStatus(goalie, from, 0, actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1).filter((z) => z.open) : [];
           const near = open.sort((a, b) => Math.abs(a.x - xCross) - Math.abs(b.x - xCross))[0];
           if (near && Math.abs(near.x - xCross) < snap) zone = near;
           else shotPoint = { x: clamp(xCross, -0.75, 0.75), y: 0.15 };
@@ -1054,6 +1127,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       offAxis,
       offAxisBad: !!level.stickAngle && offAxis > 0.5,
       goalieButterfly: goalie ? !!goalie.butterfly : false,
+      goaliePost: goalie ? !!goalie.post : false,
       lifted,
     };
     s.releases.push(info);
@@ -1075,5 +1149,5 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     gain(me);
   }
 
-  return { state: s, step, release, blade, wouldShoot, stickOffset, resetMe, zones: () => (goalie ? zoneStatus(goalie, blade(me), goalieReach(goalie, blade(me), level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
+  return { state: s, step, release, blade, wouldShoot, stickOffset, resetMe, zones: () => (goalie ? zoneStatus(goalie, blade(me), 0, actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
 }

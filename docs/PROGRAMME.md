@@ -78,6 +78,7 @@ Chaque enfant choisit sa catégorie (U9, U11, U13), qui fixe le niveau de dépar
 - Menu → **📅 Mon programme** : la semaine en cours, ses 3 séances (cochées une fois faites), le choix de la catégorie et le calendrier complet.
 - La progression est enregistrée **sur l'appareil** uniquement, sans compte (RGPD mineurs).
 - **Règles respectées** : le hors-jeu est sifflé (un attaquant ne doit pas entrer dans la zone adverse avant le palet). Les coéquipiers attendent à la ligne bleue, puis entrent quand le palet passe. Dans « Lis le jeu », le joueur de l'enfant est marqué **TOI** (anneau jaune) et la question nomme le porteur du palet. En soutien, l'enfant part **marqué** par un défenseur : il doit se démarquer vers une place libre, sans aller sur un coéquipier.
+- **Gardien imprévisible mais logique** : à chaque nouvelle possession, il change de style (mitaine haute ou basse, bouclier, jambières serrées ou non, crosse au sol, plus ou moins collé au poteau proche). Les espaces changent, on ne peut pas les apprendre par cœur. L'angle décide toujours : de côté, le côté éloigné s'ouvre plus souvent ; angle fermé tout près, il colle son poteau et seul le haut éloigné reste ouvert.
 - Ajouter `?rapide` à l'adresse lance des séances accélérées d'environ 1 min, pour les montrer aux éducateurs.
 
 ## 5. Sources

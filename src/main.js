@@ -5,7 +5,7 @@
 //   - lâcher l'écran : glisser ; double tap : freiner
 import { LEVELS, SCENARIOS, DEFENSE_SCENARIOS } from './scenarios.js';
 import { explain, describeOption } from './evaluate.js';
-import { createSim, angleTo, wrap } from './sim.js';
+import { createSim, angleTo, wrap, goalieShape } from './sim.js';
 import { createWorld } from './world.js';
 import { drawReplay } from './diagram.js';
 import { sfx, speak, unlockAudio, toggleMute, isMuted } from './audio.js';
@@ -535,23 +535,21 @@ function drawShotPanel() {
   c.translate(-cx, 0);
   const gs = G.level.goalieSize ?? 1;
   c.fillStyle = '#e5484d';
-  const gx = cx - g.x * sc;
   const k = gs; // gardien plus ou moins grand selon la catégorie
-  if (g.butterfly) {
-    c.fillRect(gx - 0.86 * k * sc, Y(0.3), 1.72 * k * sc, 0.3 * sc); // jambières au sol
-    c.fillRect(gx - 0.32 * k * sc, Y(0.86), 0.64 * k * sc, 0.56 * sc); // corps
-    c.fillRect(gx - 0.56 * k * sc, Y(0.78), 0.24 * k * sc, 0.3 * sc); // mitaine
-    c.fillRect(gx + 0.32 * k * sc, Y(0.78), 0.24 * k * sc, 0.3 * sc); // bouclier
-  } else {
-    c.fillRect(gx - 0.4 * k * sc, Y(0.22), 0.28 * k * sc, 0.22 * sc); // jambière
-    c.fillRect(gx + 0.12 * k * sc, Y(0.22), 0.28 * k * sc, 0.22 * sc); // jambière
-    c.fillRect(gx - 0.42 * k * sc, Y(1.05), 0.84 * k * sc, 0.83 * sc); // corps
-    c.fillRect(gx - 0.6 * k * sc, Y(0.92), 0.18 * k * sc, 0.4 * sc); // mitaine
-    c.fillRect(gx + 0.42 * k * sc, Y(0.92), 0.18 * k * sc, 0.4 * sc); // bouclier
+  // Même silhouette que celle qui sert à savoir si une cible est couverte (style tiré au hasard).
+  // Le gardien est devant sa ligne : vu du tireur, il paraît plus grand et décalé selon l'angle.
+  const kp = g.post || Math.abs(NET.z - from.z) < 0.5 ? 1 : (g.z - from.z) / (NET.z - from.z);
+  const nx = (xa) => from.x + (xa - from.x) / kp; // point du plan du gardien → point de la cage
+  const ny = (ya) => 0.03 + (ya - 0.03) / kp;
+  const Xu = (x) => cx - x * sc;
+  for (const [x0, x1, y0, y1] of goalieShape(g)) {
+    const a = Xu(nx(g.x + x1 * k));
+    const b = Xu(nx(g.x + x0 * k));
+    c.fillRect(Math.min(a, b), Y(ny(y1)), Math.abs(b - a), (ny(y1) - ny(y0)) * sc);
   }
   c.fillStyle = '#f1c27d';
   c.beginPath();
-  c.arc(gx, Y(g.butterfly ? 0.98 : 1.15), 0.1 * sc, 0, Math.PI * 2);
+  c.arc(Xu(nx(g.x)), Y(ny(g.butterfly || g.post ? 0.98 : 1.15)), (0.1 * sc) / kp, 0, Math.PI * 2);
   c.fill();
   c.restore();
   // Cibles (boutons placés sur la cage)
@@ -822,7 +820,7 @@ function showResult() {
     $('#res-decision').textContent = '❌ Tu n’as ni passé ni tiré.';
   }
   if (rel && rel.isShot && rel.zone) {
-    const g = rel.goalieButterfly ? 'Le gardien était en papillon (au sol)' : 'Le gardien était debout';
+    const g = rel.goaliePost ? 'Le gardien était collé à son poteau (angle fermé : vise le haut du côté éloigné)' : rel.goalieButterfly ? 'Le gardien était en papillon (au sol)' : 'Le gardien était debout';
     if (rel.offAxisBad) tip = `Tu regardais le but, mais ta crosse et ton corps n'étaient pas tournés vers lui : le tir part de la palette, dans l'axe de la crosse. Oriente-toi vers la cible avant de tirer.`;
     else if (!rel.zoneOpen) tip = `${g} et couvrait la zone « ${rel.zoneLabel} » : vise une cible verte.`;
     else if (st.over.type === 'goal') tip = `${g} : la zone « ${rel.zoneLabel} » était libre. Bien visé !`;
