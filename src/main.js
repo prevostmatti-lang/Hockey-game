@@ -94,6 +94,7 @@ function renderMenu() {
     }
     list.appendChild(row);
   }
+  for (const b of document.querySelectorAll('.view-btn')) b.classList.toggle('on', (b.dataset.view === '3') === !!G.view3);
   $('#btn-tuto').textContent = load(TUTO_KEY, false) ? '🎓 Revoir le tutoriel ✅' : '🎓 Tutoriel : apprends les gestes (2 min)';
   $('#btn-tuto').classList.toggle('new', !load(TUTO_KEY, false));
   $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
@@ -102,6 +103,7 @@ function renderMenu() {
 
 function goMenu() {
   stopDrill();
+  world.showMe(false);
   G.tuto = null;
   $('#tuto').hidden = true;
   $('#hud-step').hidden = false;
@@ -213,6 +215,7 @@ let skateId = null;
 let brakePulse = false;
 let lastTap = 0;
 const keys = new Set();
+const VIEW_KEY = 'tetehaute.view';
 
 function resetInput() {
   pointers.clear();
@@ -881,6 +884,15 @@ function syncRender() {
   const mine = p.owner === st.me;
   world.setHolding(mine);
   if (!mine) world.puck.position.set(p.x, p.y, p.z);
+  if (G.view3) {
+    // 3e personne : ton joueur est visible, le palet est dessiné sur sa palette.
+    world.showMe(true);
+    world.setHolding(false);
+    world.puck.position.set(p.x, p.y, p.z);
+    world.setChase(st.me.x, st.me.z, st.me.yaw, st.me.yaw + st.me.head);
+    return;
+  }
+  world.showMe(false);
   world.setBody(st.me.x, st.me.z, st.me.yaw);
   world.setView(st.me.x, st.me.z, st.me.yaw + st.me.head);
 }
@@ -1095,6 +1107,8 @@ function nextSegment() {
   G.sim = null;
   resetInput();
   const pool = SCENARIOS.filter((x) => x.level === S.base.id);
+  world.showMe(false);
+  world.setThirdPerson(false);
   G.drill = createDrill(seg.drill, { world, canvas, seg, rand: Math.random, sfx, speak, pool, hand: G.hand });
   G.drill.kind = seg.drill;
   $('#drill-seg').textContent = label;
@@ -1102,6 +1116,7 @@ function nextSegment() {
 }
 
 function stopDrill() {
+  world.setThirdPerson(!!G.view3);
   if (G.drill) {
     G.drill.destroy();
     G.drill = null;
@@ -1287,6 +1302,18 @@ function updateTuto(dt) {
 
 // ---------- boutons ----------
 $('#btn-tuto').addEventListener('click', startTuto);
+function setView3(on) {
+  G.view3 = !!on;
+  save(VIEW_KEY, G.view3 ? '3' : '1');
+  world.setThirdPerson(G.view3);
+}
+for (const b of document.querySelectorAll('.view-btn')) {
+  b.addEventListener('click', () => {
+    setView3(b.dataset.view === '3');
+    renderMenu();
+  });
+}
+setView3(load(VIEW_KEY, '1') === '3');
 $('#tuto-skip').addEventListener('click', () => {
   if (!G.tuto || G.tuto.done) goMenu();
   else nextTutoStep();

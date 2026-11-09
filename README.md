@@ -33,6 +33,9 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
 
+### Vue 1re ou 3e personne
+Dans le menu, **Vue : 👁️ 1re personne / 🎥 3e personne**. En 3e personne, la caméra est derrière et au-dessus du joueur (repéré par un anneau jaune), qui est visible avec sa crosse et le palet ; la zone de vision fait tourner la caméra autour de lui. Les contrôles sont les mêmes. Les exercices courts du programme restent en 1re personne.
+
 ### Tutoriel
 Dans le menu, **🎓 Tutoriel** : un parcours guidé de 2 minutes. Chaque étape est validée automatiquement quand le geste est réussi : avancer, tourner, reculer, freiner (double tap), regarder autour, faire une passe, tirer dans une cible verte. Le bouton est mis en avant tant que le tutoriel n'a pas été fait.
 

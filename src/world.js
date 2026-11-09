@@ -475,6 +475,28 @@ function makePlayer({ team, num, goalie, hand = 'R' }) {
 }
 
 /** Ma crosse : la même que celle des autres joueurs, portée par mon corps (pas collée à la caméra). */
+/** Foulées et inclinaison d'un joueur selon sa vitesse réelle (appelé à chaque déplacement). */
+function animateTo(mesh, x, z) {
+  const an = mesh.userData.anim;
+  const now = performance.now();
+  if (an && an.last) {
+    const dt = Math.max(0.001, (now - an.last.t) / 1000);
+    const v = Math.hypot(x - an.last.x, z - an.last.z) / dt;
+    an.v = an.v == null ? v : an.v + (v - an.v) * Math.min(1, dt * 8);
+    const k = Math.min(1, an.v / 4.5);
+    an.phase += dt * (3 + an.v * 1.6);
+    const sw = Math.sin(an.phase) * 0.45 * k;
+    an.legs[0].rotation.x = sw;
+    an.legs[1].rotation.x = -sw;
+    an.legs[0].rotation.z = -0.12 * k * Math.max(0, Math.sin(an.phase));
+    an.legs[1].rotation.z = 0.12 * k * Math.max(0, -Math.sin(an.phase));
+    an.body.rotation.x = 0.22 * k; // penché en avant
+    an.body.position.y = -0.06 * k; // genoux fléchis
+  }
+  if (an) an.last = { x, z, t: now };
+  mesh.position.set(x, 0, z);
+}
+
 function buildMyStick(hand) {
   const grp = new THREE.Group();
   const stick = makeStick({ hand });
@@ -525,14 +547,45 @@ export function createWorld(canvas) {
   let hfov = 78 * DEG;
   let side = 1; // 1 = palette à droite, -1 = à gauche
   let stickSwing = null;
+  let myStickWanted = false;
   let lookDrop = 0.9; // regard légèrement vers la glace (plus en portrait)
   const raycaster = new THREE.Raycaster();
+
+  // Vue à la 3e personne (option) : caméra derrière et au-dessus du joueur, qui est visible.
+  let third = false;
+  let meMesh = null;
+  let meHand = 'R';
+  const meGroup = new THREE.Group();
+  scene.add(meGroup);
+  function buildMe() {
+    meGroup.clear();
+    meMesh = makePlayer({ team: true, num: null, hand: meHand });
+    // Repère au-dessus de la tête pour se retrouver facilement
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 32), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.01;
+    meMesh.add(ring);
+    meGroup.add(meMesh);
+    meGroup.visible = false;
+  }
+  buildMe();
 
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     renderer.setSize(w, h, false);
     const aspect = w / h;
+    if (third) {
+      // 3e personne : champ plus classique (95° en paysage, 75° en portrait).
+      const t3 = (aspect < 1 ? 58 : 95) * DEG;
+      let v3 = 2 * Math.atan(Math.tan(t3 / 2) / aspect);
+      v3 = Math.min(110 * DEG, Math.max(40 * DEG, v3));
+      camera.fov = v3 / DEG;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      hfov = 2 * Math.atan(Math.tan(v3 / 2) * aspect);
+      return;
+    }
     // Le jeu se joue en paysage, avec une vue large, type « fish-eye » (130° en largeur) pour voir le jeu autour de soi.
     // En portrait aussi, vue « fish-eye » : 110° en largeur (l'écran étant étroit, la vue est très haute).
     const portrait = aspect < 1;
@@ -555,7 +608,36 @@ export function createWorld(canvas) {
     puck,
     resize,
     getHfov: () => hfov,
+    /** Active ou non la vue à la 3e personne. */
+    setThirdPerson(on) {
+      third = !!on;
+      resize();
+    },
+    isThirdPerson: () => third,
+    /** Montre ou cache ton joueur (vue 3e personne). */
+    showMe(on) {
+      meGroup.visible = !!on && third;
+      myStick.visible = !third && myStickWanted;
+    },
+    /** Caméra 3e personne : derrière et au-dessus du joueur, dans la direction du regard. */
+    setChase(x, z, bodyYaw, viewYaw) {
+      if (meMesh) {
+        animateTo(meMesh, x, z);
+        meMesh.rotation.y = bodyYaw;
+      }
+      // Un peu en hauteur derrière la tête ; on vise devant le joueur pour le voir en bas de l'écran
+      // avec sa crosse et le palet, et le jeu devant lui.
+      const portrait = camera.aspect < 1;
+      const back = portrait ? 4.4 : 4.6;
+      const height = portrait ? 3.6 : 3.9;
+      const ahead = portrait ? 16 : 6.5;
+      camera.up.set(0, 1, 0);
+      camera.position.set(x - Math.sin(viewYaw) * back, height, z - Math.cos(viewYaw) * back);
+      camera.lookAt(x + Math.sin(viewYaw) * ahead, 0, z + Math.cos(viewYaw) * ahead);
+    },
     setHand(hand) {
+      meHand = hand;
+      buildMe();
       side = hand === 'L' ? -1 : 1;
       const vis = myStick.visible;
       const holding = myStick.userData.puck.visible;
@@ -600,7 +682,8 @@ export function createWorld(canvas) {
       return { x: r.origin.x + r.direction.x * t, z: r.origin.z + r.direction.z * t };
     },
     setStickVisible(v) {
-      myStick.visible = v;
+      myStickWanted = v;
+      myStick.visible = v && !(third && meGroup.visible);
     },
     /** Palet sur ma crosse (vue joueur) ou palet libre sur la glace. */
     setHolding(h) {
@@ -630,25 +713,7 @@ export function createWorld(canvas) {
       return {
         mesh,
         setPos(x, z) {
-          // Foulées et inclinaison selon la vitesse réelle du joueur.
-          const an = mesh.userData.anim;
-          const now = performance.now();
-          if (an && an.last) {
-            const dt = Math.max(0.001, (now - an.last.t) / 1000);
-            const v = Math.hypot(x - an.last.x, z - an.last.z) / dt;
-            an.v = an.v == null ? v : an.v + (v - an.v) * Math.min(1, dt * 8);
-            const k = Math.min(1, an.v / 4.5);
-            an.phase += dt * (3 + an.v * 1.6);
-            const sw = Math.sin(an.phase) * 0.45 * k;
-            an.legs[0].rotation.x = sw;
-            an.legs[1].rotation.x = -sw;
-            an.legs[0].rotation.z = -0.12 * k * Math.max(0, Math.sin(an.phase));
-            an.legs[1].rotation.z = 0.12 * k * Math.max(0, -Math.sin(an.phase));
-            an.body.rotation.x = 0.22 * k; // penché en avant
-            an.body.position.y = -0.06 * k; // genoux fléchis
-          }
-          if (an) an.last = { x, z, t: now };
-          mesh.position.set(x, 0, z);
+          animateTo(mesh, x, z);
         },
         face(x, z) {
           mesh.rotation.y = Math.atan2(x - mesh.position.x, z - mesh.position.z);
