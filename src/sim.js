@@ -941,19 +941,25 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       for (const a of actors) {
         if (!a.team) continue;
         const diff = Math.abs(wrap(angleTo(from, a) - aim));
-        if (diff < 0.4 && (!best || diff < best.diff)) best = { a, diff };
+        if (diff < 0.6 && (!best || diff < best.diff)) best = { a, diff };
       }
       if (best) {
         target = best.a;
         const speedGuess = 8 + clamp(power, 0, 1) * 22;
-        if (best.diff < assist + 0.03) aim = angleTo(from, lead(from, best.a, speedGuess));
+        // Aide à la passe : on corrige la visée vers le coéquipier (en anticipant sa course)
+        // si le swipe est assez proche de lui : ≈ 34° en U9, 22° en U11, 14° en U13.
+        if (best.diff < assist * 2 + 0.12) aim = angleTo(from, lead(from, best.a, speedGuess));
       }
     }
 
     // Coup droit ou revers ?
     const rel = wrap(aim - me.yaw);
-    const backhand = hand === 'R' ? rel > 0.35 : rel < -0.35;
+    // Droitier : palette à droite, coup droit tourné vers la gauche. Une passe vers la DROITE
+    // (rel < 0, car rel > 0 = vers la gauche) se fait en revers. Gaucher : l'inverse.
+    const backhand = hand === 'R' ? rel < -0.35 : rel > 0.35;
     let speed = 8 + clamp(power, 0, 1) * 22;
+    // Aide à la passe : pas trop fort pour que le coéquipier puisse contrôler (selon la distance).
+    if (!isShot && target) speed = Math.min(speed, 9 + 0.7 * dist(from, target));
     if (backhand) {
       speed *= 0.7;
       aim += (rand() - 0.5) * 0.14;
@@ -1005,5 +1011,17 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     return info;
   }
 
-  return { state: s, step, release, blade, wouldShoot, stickOffset, zones: () => (goalie ? zoneStatus(goalie, blade(me), goalieReach(goalie, blade(me), level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
+  /** Tutoriel : place le joueur et lui donne le palet. */
+  function resetMe(x, z, yaw) {
+    me.x = x;
+    me.z = z;
+    me.yaw = yaw;
+    me.speed = 0;
+    me.head = 0;
+    s.over = null;
+    s.overT = 0;
+    gain(me);
+  }
+
+  return { state: s, step, release, blade, wouldShoot, stickOffset, resetMe, zones: () => (goalie ? zoneStatus(goalie, blade(me), goalieReach(goalie, blade(me), level), actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
 }

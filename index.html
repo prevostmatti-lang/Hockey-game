@@ -43,6 +43,7 @@
       <div class="card menu-card">
         <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
         <p class="tagline">Regarde. Décide. Marque.</p>
+        <button id="btn-tuto" class="btn big tuto-btn"></button>
         <button id="btn-program" class="btn big program-btn">📅 Mon programme · 3 × 15 min par semaine</button>
         <h2>Ou joue librement</h2>
         <div id="levels"></div>
@@ -50,7 +51,7 @@
         <ul class="controls">
           <li><span class="ico">🕹️</span><span><b>Zone de déplacement</b> (moitié gauche à l’horizontale, moitié basse à la verticale) : c’est ton joystick. Pousse pour patiner (plus loin = plus vite), sur le côté pour tourner, vers le bas pour reculer.</span></li>
           <li><span class="ico">👀</span><span><b>Zone de vision</b> (l’autre moitié) : glisse pour regarder autour de toi. Lève le doigt et ton regard revient devant.</span></li>
-          <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort ; un swipe <b>long</b> fait une <b>passe levée</b> par-dessus les crosses.</span></li>
+          <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort ; un swipe <b>très long</b> fait une <b>passe levée</b> par-dessus les crosses.</span></li>
           <li><span class="ico">🥅</span><span>Swipe <b>vers le but</b> : le jeu ralentit et la <b>cage</b> apparaît. Touche vite une <b>cible verte</b> (trou libre) pour tirer dedans ; les rouges sont couvertes par le gardien.</span></li>
           <li><span class="ico">🛑</span><span><b>Lâche l’écran</b> : tu glisses en ralentissant. <b>Tape deux fois</b> : tu freines.</span></li>
           <li><span class="ico">⬇️</span><span><b>Tire ton pouce vers le bas</b> pour patiner à reculons (utile en défense).</span></li>
@@ -157,6 +158,16 @@
       <div id="drill-buttons"></div>
     </div>
 
+    <div id="tuto" hidden>
+      <div class="tuto-card">
+        <span id="tuto-icon" class="tuto-icon"></span>
+        <div>
+          <p id="tuto-text"></p>
+          <p id="tuto-dots" class="tuto-dots"></p>
+        </div>
+        <button id="tuto-skip" class="btn ghost tuto-skip">Passer ▶</button>
+      </div>
+    </div>
     <div id="flash" aria-live="polite"></div>
 
     <!-- Résultat d'une situation -->

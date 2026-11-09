@@ -111,11 +111,13 @@ test('passe en revers : moins forte que le coup droit', () => {
     // Passe à 60° sur la droite du joueur
     return sim.release(me.yaw - 1.05, 0.5);
   };
+  // Passe vers la droite : revers pour un droitier (palette à droite, coup droit vers la gauche),
+  // coup droit pour un gaucher.
   const right = mk('R');
   const left = mk('L');
-  assert.equal(right.backhand, false);
-  assert.equal(left.backhand, true);
-  assert.ok(left.speed < right.speed);
+  assert.equal(right.backhand, true);
+  assert.equal(left.backhand, false);
+  assert.ok(right.speed < left.speed);
 });
 
 test('patiner : le doigt appuyé fait avancer, le glissement fait tourner', () => {

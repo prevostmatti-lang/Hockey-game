@@ -524,6 +524,7 @@ export function createWorld(canvas) {
   let pickables = [netHit];
   let hfov = 78 * DEG;
   let side = 1; // 1 = palette à droite, -1 = à gauche
+  let stickSwing = null;
   let lookDrop = 0.9; // regard légèrement vers la glace (plus en portrait)
   const raycaster = new THREE.Raycaster();
 
@@ -567,7 +568,18 @@ export function createWorld(canvas) {
     /** Place ma crosse avec mon corps (position et orientation du corps, pas de la tête). */
     setBody(x, z, yaw) {
       myStick.position.set(x, 0, z);
-      myStick.rotation.y = yaw;
+      // Petit geste de crosse au moment de la passe ou du tir (balayage coup droit ou revers).
+      let swing = 0;
+      if (stickSwing) {
+        const k = (performance.now() - stickSwing.t0) / 300;
+        if (k >= 1) stickSwing = null;
+        else swing = stickSwing.dir * Math.sin(k * Math.PI) * 0.45;
+      }
+      myStick.rotation.y = yaw + swing;
+    },
+    /** dir : +1 = balayage vers la gauche, -1 = vers la droite. */
+    swingStick(dir) {
+      stickSwing = { dir, t0: performance.now() };
     },
     /** Hauteur (en pixels) de la ligne d'horizon à l'écran. */
     horizonY() {

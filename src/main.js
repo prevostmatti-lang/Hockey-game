@@ -94,12 +94,18 @@ function renderMenu() {
     }
     list.appendChild(row);
   }
+  $('#btn-tuto').textContent = load(TUTO_KEY, false) ? '🎓 Revoir le tutoriel ✅' : '🎓 Tutoriel : apprends les gestes (2 min)';
+  $('#btn-tuto').classList.toggle('new', !load(TUTO_KEY, false));
   $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
   $('#portrait-tip').hidden = true; // le jeu marche en paysage comme en portrait
 }
 
 function goMenu() {
   stopDrill();
+  G.tuto = null;
+  $('#tuto').hidden = true;
+  $('#hud-step').hidden = false;
+  $('#timer').hidden = false;
   G.session = null;
   G.phase = 'menu';
   G.sim = null;
@@ -333,6 +339,7 @@ function endPointer(e, isUp) {
     if (isTap) {
       if (now - lastTap < 380) {
         brakePulse = true;
+        if (G.tuto) G.tuto.braked = true;
         lastTap = 0;
         setBanner('🛑 Freinage !', 'info');
       } else lastTap = now;
@@ -380,20 +387,27 @@ function tryFlick(p) {
   const aim = me.yaw + me.head - clamp(swipeAngle, -1.3, 1.3) * 0.9;
 
   if (G.radar == null) G.radar = allSeen();
-  // Swipe long (plus de 40 % de la hauteur de l'écran) : passe levée, au-dessus des crosses.
-  const lifted = p.y0 - e.y > 0.4 * H;
-  // Swipe vers le but : la cage apparaît, le jeu ralentit, et on choisit où tirer.
-  if (!lifted && G.sim.wouldShoot(aim)) {
+  // Swipe long (plus de 60 % de la hauteur de l'écran) : passe levée, au-dessus des crosses.
+  const lifted = p.y0 - e.y > 0.6 * H;
+  // Swipe vers le but (même long) : la cage apparaît, le jeu ralentit, et on choisit où tirer.
+  if (G.sim.wouldShoot(aim)) {
     startAiming(aim, power);
     return true;
   }
   const info = G.sim.release(aim, power, { lifted });
   if (!info) return false;
+  swingFor(info);
   sfx.puck();
   if (info.isShot && info.zone) setBanner(`🎯 Tir ${info.zoneLabel} !`, 'info');
   else if (info.lifted) setBanner('🪂 Passe levée !', 'info');
   else if (info.backhand) setBanner('Revers !', 'info');
   return true;
+}
+
+/** Geste de la crosse : coup droit = balayage vers le côté du coup droit, revers = vers l'autre côté. */
+function swingFor(info) {
+  const fore = G.hand === 'L' ? -1 : 1; // droitier : coup droit vers la gauche
+  world.swingStick(info.backhand ? -fore : fore);
 }
 
 // ---------- cage et cibles de tir ----------
@@ -431,6 +445,7 @@ function aimTimeout() {
   if (!G.sim) return;
   const info = G.sim.release(a.aim, a.power);
   if (!info) return;
+  swingFor(info);
   sfx.puck();
   setBanner('⏱️ Trop tard pour viser : tir au hasard !', 'info');
 }
@@ -536,6 +551,7 @@ for (const b of document.querySelectorAll('.zone-btn')) {
     stopAiming();
     const info = G.sim.release(0, Math.max(0.5, power), { zone: b.dataset.zone });
     if (!info) return;
+    swingFor(info);
     sfx.puck();
     setBanner(`🎯 Tir ${info.zoneLabel} !`, 'info');
   });
@@ -835,6 +851,8 @@ function showSummary() {
 
 // ---------- interface ----------
 function setBanner(text, kind) {
+  // Pendant le tutoriel, l'encadré du tuto donne les consignes : on ne garde que les petits messages.
+  if (G.tuto && !G.tuto.done && kind !== 'info') return;
   const b = $('#banner');
   b.textContent = text;
   b.dataset.kind = kind;
@@ -873,7 +891,8 @@ function syncRender() {
 function updatePuckIndicator() {
   const el = $('#puck-ind');
   const st = G.sim && G.phase === 'play' ? G.sim.state : null;
-  if (!st || st.over || st.puck.owner === st.me) {
+  const tutoEarly = G.tuto && !G.tuto.done && G.tuto.step < 5; // pas de palet dans les premières étapes
+  if (!st || st.over || st.puck.owner === st.me || tutoEarly) {
     el.hidden = true;
     return;
   }
@@ -925,7 +944,8 @@ function update(dt) {
     $('#timer-fill').style.transform = `scaleX(${clamp(1 - st.t / G.level.time, 0, 1)})`;
     drawShotPanel();
     updatePuckIndicator();
-    if (st.over && st.overT >= END_DELAY && !G.shown) showResult();
+    if (G.tuto) updateTuto(dt);
+    else if (st.over && st.overT >= END_DELAY && !G.shown) showResult();
   }
   syncRender();
 }
@@ -1146,7 +1166,131 @@ function showSessionEnd() {
   speak($('#se-title').textContent);
 }
 
+// ---------- tutoriel ----------
+// Parcours guidé : chaque étape est validée automatiquement quand le geste est réussi.
+const TUTO_KEY = 'tetehaute.tuto';
+const TUTO_STEPS = [
+  { id: 'move', icon: '🕹️', text: 'Pose ton pouce dans la zone de déplacement et pousse-le vers le haut pour avancer.', zones: true },
+  { id: 'turn', icon: '↪️', text: 'Garde ton pouce posé et déplace-le sur le côté pour tourner. Plus tu vas loin, plus tu tournes vite.' },
+  { id: 'back', icon: '⬇️', text: 'Tire ton pouce vers le bas pour patiner à reculons.' },
+  { id: 'brake', icon: '🛑', text: 'Avance, lâche l’écran (tu glisses), puis tape deux fois pour freiner.' },
+  { id: 'look', icon: '👀', text: 'Glisse ton doigt dans l’autre zone pour regarder autour de toi sans changer de direction.', zones: true },
+  { id: 'pass', icon: '🏒', text: 'Tu as le palet ! Swipe vers le haut en direction du n°9 pour lui faire une passe.' },
+  { id: 'shoot', icon: '🥅', text: 'Swipe vers le but : le jeu ralentit, touche une cible VERTE pour tirer.' },
+];
+const TUTO_SCN = {
+  id: 'tuto',
+  title: 'Tutoriel',
+  me: { x: 0, z: 0 },
+  passer: { num: 4, x: -9, z: -12 },
+  teammates: [{ num: 9, x: 6, z: 7 }],
+  opponents: [{ goalie: true, x: 0, z: 25.2 }],
+  lesson: '',
+};
+
+function startTuto() {
+  unlockAudio();
+  G.mode = 'attack';
+  G.session = null;
+  G.level = { ...LEVELS[0], time: 1e9, passDelay: 1e9, shotTime: 4 };
+  G.queue = [TUTO_SCN];
+  G.index = 0;
+  G.results = [];
+  loadScenario(TUTO_SCN);
+  G.tuto = { step: -1, t: 0 };
+  G.phase = 'play';
+  resetInput();
+  showScreen(null);
+  $('#hud-level').textContent = '🎓 Tuto';
+  $('#hud-step').hidden = true;
+  $('#timer').hidden = true;
+  $('#ctl-hint').hidden = true;
+  $('#tuto').hidden = false;
+  nextTutoStep();
+}
+
+function nextTutoStep() {
+  const T = G.tuto;
+  T.step += 1;
+  T.t = 0;
+  const st = G.sim.state;
+  T.start = { x: st.me.x, z: st.me.z, yaw: st.me.yaw };
+  T.turned = 0;
+  T.lastYaw = st.me.yaw;
+  T.braked = false;
+  T.fast = false;
+  if (T.step >= TUTO_STEPS.length) {
+    $('#tuto-icon').textContent = '🎉';
+    $('#tuto-text').textContent = 'Bravo, tu es prêt à jouer ! Choisis ta catégorie dans le menu.';
+    $('#tuto-dots').textContent = '●'.repeat(TUTO_STEPS.length);
+    $('#tuto-skip').textContent = 'Menu ▶';
+    save(TUTO_KEY, true);
+    sfx.good();
+    speak('Bravo, tu es prêt à jouer !');
+    T.done = true;
+    return;
+  }
+  const S = TUTO_STEPS[T.step];
+  $('#tuto-icon').textContent = S.icon;
+  $('#tuto-text').textContent = S.text;
+  $('#tuto-dots').textContent = '●'.repeat(T.step) + '◉' + '○'.repeat(TUTO_STEPS.length - T.step - 1);
+  $('#tuto-skip').textContent = 'Passer ▶';
+  showZones(!!S.zones);
+  if (S.id === 'pass') G.sim.resetMe(0, 0, Math.atan2(6, 7) - 0.15); // face au n°9
+  if (S.id === 'shoot') G.sim.resetMe(0, 12, 0);
+  if (T.step > 0) sfx.good();
+  speak(S.text);
+}
+
+function updateTuto(dt) {
+  const T = G.tuto;
+  if (T.done) return;
+  T.t += dt;
+  const st = G.sim.state;
+  const me = st.me;
+  const id = TUTO_STEPS[T.step].id;
+  T.turned += Math.abs(wrap(me.yaw - T.lastYaw));
+  T.lastYaw = me.yaw;
+  if (me.speed > 2) T.fast = true;
+  let ok = false;
+  if (id === 'move') ok = Math.hypot(me.x - T.start.x, me.z - T.start.z) > 4;
+  else if (id === 'turn') ok = T.turned > 1.5;
+  else if (id === 'back') ok = me.speed < -1.2;
+  else if (id === 'brake') ok = T.fast && T.braked;
+  else if (id === 'look') ok = Math.abs(me.head) > 0.5;
+  else if (id === 'pass') {
+    const mate = st.actors.find((a) => a.num === 9);
+    ok = st.puck.owner === mate;
+    // Passe ratée : on redonne le palet après 3 s
+    if (!ok && st.releases.length && !st.puck.owner && Math.hypot(st.puck.vx, st.puck.vz) < 1) {
+      T.retry = (T.retry || 0) + dt;
+      if (T.retry > 1.5) {
+        T.retry = 0;
+        G.sim.resetMe(0, 0, Math.atan2(6, 7) - 0.15);
+        setBanner('On recommence : vise le n°9 !', 'info');
+      }
+    }
+  } else if (id === 'shoot') {
+    if (st.over) {
+      if (!T.shotT) {
+        T.shotT = T.t;
+        if (st.over.type === 'goal') {
+          flash('BUT ! 🚨');
+          sfx.horn();
+        } else setBanner(st.over.type === 'save' ? '🧤 Arrêt ! Le tir compte quand même 👍' : '↗️ À côté ! Le tir compte quand même 👍', 'info');
+      }
+      ok = T.t - T.shotT > 1.5;
+    }
+  }
+  if (ok && T.t > 0.6) nextTutoStep();
+}
+
 // ---------- boutons ----------
+$('#btn-tuto').addEventListener('click', startTuto);
+$('#tuto-skip').addEventListener('click', () => {
+  if (!G.tuto || G.tuto.done) goMenu();
+  else nextTutoStep();
+});
 $('#btn-program').addEventListener('click', showProgram);
 $('#prog-back').addEventListener('click', goMenu);
 $('#se-done').addEventListener('click', showProgram);

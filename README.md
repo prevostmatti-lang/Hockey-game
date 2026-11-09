@@ -33,6 +33,12 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | Lâcher l'écran | on glisse en ralentissant |
 | Double tap | freiner |
 
+### Tutoriel
+Dans le menu, **🎓 Tutoriel** : un parcours guidé de 2 minutes. Chaque étape est validée automatiquement quand le geste est réussi : avancer, tourner, reculer, freiner (double tap), regarder autour, faire une passe, tirer dans une cible verte. Le bouton est mis en avant tant que le tutoriel n'a pas été fait.
+
+### Aide à la passe
+Un swipe à peu près vers un coéquipier est corrigé vers lui en anticipant sa course (≈ 34° en U9, 22° en U11, 14° en U13), et la passe n'est pas plus forte que ce qu'il peut contrôler. Pour un droitier (palette à droite), une passe vers la gauche est un coup droit et vers la droite un revers ; la crosse fait le geste correspondant à l'écran.
+
 ### Palet hors de l'écran
 Quand le palet n'est pas dans le champ de vision, une icône palet avec une flèche apparaît sur le bord de l'écran, du côté où il se trouve, avec sa distance (« derrière toi » s'il est dans le dos).
 
