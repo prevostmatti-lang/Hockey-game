@@ -520,14 +520,21 @@ function animateTo(mesh, x, z) {
     const v = Math.hypot(x - an.last.x, z - an.last.z) / dt;
     an.v = an.v == null ? v : an.v + (v - an.v) * Math.min(1, dt * 8);
     const k = Math.min(1, an.v / 4.5);
-    an.phase += dt * (3 + an.v * 1.6);
-    const sw = Math.sin(an.phase) * 0.45 * k;
-    an.legs[0].rotation.x = sw;
-    an.legs[1].rotation.x = -sw;
-    an.legs[0].rotation.z = -0.12 * k * Math.max(0, Math.sin(an.phase));
-    an.legs[1].rotation.z = 0.12 * k * Math.max(0, -Math.sin(an.phase));
-    an.body.rotation.x = 0.22 * k; // penché en avant
-    an.body.position.y = -0.06 * k; // genoux fléchis
+    // Foulée de patinage (pas de marche) : chaque jambe pousse en diagonale vers l'arrière et
+    // l'extérieur pendant que l'autre glisse sous le corps ; le corps penché bascule sur la
+    // jambe qui glisse. Cadence plus lente et poussée plus longue qu'un pas.
+    an.phase += dt * (2.4 + an.v * 1.0);
+    for (let i = 0; i < 2; i++) {
+      const push = Math.max(0, Math.sin(an.phase + i * Math.PI)); // 0 = glisse, 1 = poussée max
+      const out = i === 0 ? -1 : 1; // legs[0] est à droite du joueur (côté -x)
+      an.legs[i].rotation.z = out * (0.05 + 0.42 * push) * k; // jambe écartée vers l'extérieur
+      an.legs[i].rotation.x = (0.32 * push - 0.12 * (1 - push)) * k; // tendue vers l'arrière
+    }
+    const sway = Math.sin(an.phase);
+    an.body.rotation.x = 0.36 * k; // penché en avant
+    an.body.rotation.z = 0.08 * k * sway; // bascule sur la jambe qui glisse
+    an.body.position.x = 0.06 * k * sway;
+    an.body.position.y = -0.13 * k; // genoux fléchis
   }
   if (an) an.last = { x, z, t: now };
   mesh.position.set(x, 0, z);
