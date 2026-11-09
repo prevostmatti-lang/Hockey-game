@@ -108,39 +108,67 @@ function segD(p, a, b) {
 }
 
 function buildSoutien(rand, pool) {
-  // Le coéquipier qui a le palet est à la place du joueur de la situation ; on cherche 3 places :
-  // une bonne (ligne de passe libre, espace, vers le but), une avec la ligne coupée, une collée à un adversaire.
-  for (let tries = 0; tries < 40; tries++) {
+  // Le coéquipier qui a le palet est à la place du joueur de la situation. TOI, tu pars MARQUÉ :
+  // un défenseur est collé à toi, entre toi et son but. Il faut te démarquer. On cherche 3 places :
+  //   - une bonne : ligne de passe libre, de l'espace, et pas sur un coéquipier ;
+  //   - une où un adversaire coupe la ligne de passe ;
+  //   - une collée à un coéquipier (vous êtes 2 au même endroit : un seul défenseur vous surveille).
+  const GOAL = { x: 0, z: 26 };
+  const onside = (carrier, p) => !(carrier.z < 7.5 && p.z > 7.2); // hors-jeu : pas dans la zone avant le palet
+  for (let tries = 0; tries < 60; tries++) {
     const scn = makeVariant(pick(pool, rand), rand);
     const carrier = scn.me;
-    const opps = scn.opponents.filter((o) => !o.goalie).map(finalPos);
+    const mates = scn.teammates.filter((t) => !t.goalie).map(finalPos);
+    const opps0 = scn.opponents.filter((o) => !o.goalie).map(finalPos);
+    // Ta place de départ (marqué) : ni sur un coéquipier ni sur un adversaire déjà là.
+    let me = null;
+    for (let k = 0; k < 60 && !me; k++) {
+      const a = (rand() - 0.5) * Math.PI * 1.2;
+      const r = 4 + rand() * 5;
+      const p = { x: carrier.x + Math.sin(a) * r, z: carrier.z + Math.cos(a) * r };
+      if (Math.abs(p.x) > 10.5 || p.z > 21 || p.z < -20 || !onside(carrier, p)) continue;
+      if (Math.min(99, ...mates.map((m) => d2(m, p))) < 3.5 || Math.min(99, ...opps0.map((o) => d2(o, p))) < 3) continue;
+      me = p;
+    }
+    if (!me) continue;
+    // Le défenseur qui te marque : collé à toi, côté de son but.
+    const dg = d2(GOAL, me) || 1;
+    const used = new Set([...scn.teammates, ...scn.opponents].map((p) => p.num));
+    const markerNum = [4, 6, 8, 12, 19, 24, 33, 44, 55].find((n) => !used.has(n)) ?? 2;
+    const marker = { num: markerNum, x: me.x + ((GOAL.x - me.x) / dg) * 1.3, z: me.z + ((GOAL.z - me.z) / dg) * 1.3 };
+    const opps = [...opps0, marker];
     const cands = [];
-    for (let k = 0; k < 160; k++) {
+    for (let k = 0; k < 200; k++) {
       const a = (rand() - 0.5) * Math.PI * 1.4;
       const r = 5 + rand() * 8;
       const p = { x: carrier.x + Math.sin(a) * r, z: carrier.z + Math.cos(a) * r };
-      if (Math.abs(p.x) > 11 || p.z > 23 || p.z < -20) continue;
-      // Hors-jeu : si le porteur n'est pas encore dans la zone, on ne peut pas l'y attendre.
-      if (carrier.z < 7.5 && p.z > 7.2) continue;
+      if (Math.abs(p.x) > 11 || p.z > 23 || p.z < -20 || !onside(carrier, p)) continue;
+      const moveFromMe = d2(p, me);
+      if (moveFromMe < 3.5 || moveFromMe > 10) continue; // on va quelque part, mais pas à l'autre bout
       const lane = Math.min(...opps.map((o) => segD(o, carrier, p)));
       const space = Math.min(...opps.map((o) => d2(o, p)));
-      cands.push({ ...p, lane, space });
+      const mate = Math.min(99, ...mates.map((m) => d2(m, p)));
+      cands.push({ ...p, lane, space, mate });
     }
-    const good = cands.filter((c) => c.lane > 2 && c.space > 3.5).sort((a, b) => b.z - a.z)[0];
-    const cut = cands.filter((c) => c.lane < 0.9 && c.space > 1.8).sort((a, b) => b.z - a.z)[0];
-    const covered = cands.filter((c) => c.space < 1.6 && c.lane > 1.2)[0];
-    if (!good || !cut || !covered) continue;
-    if (d2(good, cut) < 3 || d2(good, covered) < 3 || d2(cut, covered) < 3) continue;
+    const good = cands.filter((c) => c.lane > 2 && c.space > 3.5 && c.mate > 4).sort((a, b) => b.z - a.z)[0];
+    const cut = cands.filter((c) => c.lane < 0.9 && c.space > 1.8 && c.mate > 3).sort((a, b) => b.z - a.z)[0];
+    const crowd = mates.length ? cands.filter((c) => c.mate < 1.8 && c.lane > 1.2).sort((a, b) => a.mate - b.mate)[0] : null;
+    if (!good || !cut || !crowd) continue;
+    if (d2(good, cut) < 3 || d2(good, crowd) < 3 || d2(cut, crowd) < 3) continue;
+    scn.opponents = [...scn.opponents, marker];
+    // Numéro du porteur : différent de tous les autres joueurs de la scène.
+    const carrierNum = [10, 16, 20, 25, 29].find((n) => !used.has(n) && n !== markerNum);
     return {
       scn,
       role: 'soutien',
-      prompt: 'Le n°10 a le palet. TOI (anneau jaune) : où te proposes-tu ?',
-      me: { x: carrier.x + (carrier.x > 0 ? -3.5 : 3.5), z: carrier.z - 2.5 },
+      prompt: `Le n°${carrierNum} a le palet. TOI (anneau jaune), tu es marqué : où vas-tu pour recevoir la passe ?`,
+      me,
+      carrierNum,
       options: shuffle(
         [
-          { ...good, ok: true, why: 'ligne de passe libre et de l’espace autour de toi.' },
+          { ...good, ok: true, why: 'tu te démarques : ligne de passe libre, de l’espace, et tu ne gênes pas ton coéquipier.' },
           { ...cut, ok: false, why: 'un adversaire coupe la ligne de passe.' },
-          { ...covered, ok: false, why: 'un adversaire est collé à toi.' },
+          { ...crowd, ok: false, why: 'tu vas sur ton coéquipier : un seul défenseur vous surveille tous les deux. Écarte-toi de lui.' },
         ],
         rand,
       ),
@@ -236,11 +264,11 @@ function lisLeJeu(ctx) {
     // Toi : anneau jaune et « TOI » au-dessus de la tête
     const meA = world.addActor({ team: true, me: true, hand: ctx.hand || 'R' });
     meA.setPos(tr.me.x, tr.me.z);
-    if (tr.role === 'soutien') meA.face(tr.me.x, tr.me.z + 5);
+    if (tr.role === 'soutien') meA.face(tr.carrier.x, tr.carrier.z); // tu regardes le porteur
     else meA.face(tr.me.x, tr.me.z + 5 * (tr.role === 'duel' || tr.role === 'marquage' ? 1 : -1));
     if (tr.role === 'soutien') {
       // le porteur (coéquipier) et toi (en jaune, là où tu es)
-      const c = world.addActor({ team: true, num: 10, hand: 'R' });
+      const c = world.addActor({ team: true, num: tr.carrierNum, hand: 'R' });
       c.setPos(tr.carrier.x, tr.carrier.z);
       c.face(0, 26);
       puckActor = c;
@@ -335,11 +363,23 @@ function lisLeJeu(ctx) {
         }
         const c = world.camera;
         const f = trial.frame;
-        const back = 3 + f.ext * 0.8;
-        const h = 4 + f.ext * 0.95;
         c.up.set(0, 1, 0);
-        c.position.set(f.cx, h, f.cz - f.dir * back);
-        c.lookAt(f.cx, 0, f.cz + f.dir * (1.5 + f.ext * 0.45)); // l'action un peu plus bas : la question occupe le haut de l'écran
+        if (c.aspect < 1) {
+          // Portrait : l'écran est étroit → on règle la distance pour que la largeur de l'action
+          // remplisse l'écran, avec une vue plongeante (55°).
+          const hf = Math.min(world.getHfov(), 2 * Math.atan(Math.tan((c.fov * Math.PI) / 360) * c.aspect));
+          const d = (1.8 * (f.ext + 2)) / Math.tan(hf / 2); // marge : l’image est déformée sur les bords
+          const pitch = 55 * (Math.PI / 180);
+          const tz = f.cz + f.dir * f.ext * 0.3; // l'action un peu plus bas : la question occupe le haut
+          c.position.set(f.cx, Math.sin(pitch) * d, tz - f.dir * Math.cos(pitch) * d);
+          c.lookAt(f.cx, 0, tz);
+        } else {
+          const back = 3 + f.ext * 0.8;
+          const h = 4 + f.ext * 0.95;
+          c.position.set(f.cx, h, f.cz - f.dir * back);
+          // l'action un peu plus bas : la question occupe le haut de l'écran
+          c.lookAt(f.cx, 0, f.cz + f.dir * (1.5 + f.ext * 0.45));
+        }
       }
       return t >= seg.seconds && pause <= 0;
     },

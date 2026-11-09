@@ -15,6 +15,15 @@ test('« Lis le jeu » : chaque essai a une seule bonne réponse, bien distincte
       ok++;
       assert.equal(s.options.filter((o) => o.ok).length, 1);
       for (const a of s.options) for (const b of s.options) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.z - b.z) >= 3);
+      const D = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+      // tu pars marqué : un défenseur est collé à toi
+      assert.ok(s.scn.opponents.some((o) => !o.goalie && D(o, s.me) < 1.6), 'TOI part marqué');
+      // la bonne place ne gêne pas un coéquipier, et il faut bouger pour l'atteindre
+      const good = s.options.find((o) => o.ok);
+      for (const t of s.scn.teammates) if (!t.goalie) assert.ok(D(good, t.to || t) > 4, 'bonne place loin des coéquipiers');
+      assert.ok(D(good, s.me) >= 3.5);
+      // le numéro du porteur est unique dans la scène
+      assert.ok(![...s.scn.teammates, ...s.scn.opponents].some((p) => p.num === s.carrierNum));
     }
     assert.ok(ok >= 25, `${lv} : soutien trouvé ${ok}/30`);
     const d = buildDuel(rand);
