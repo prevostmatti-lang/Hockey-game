@@ -65,10 +65,46 @@ function halfWidthAt(z) {
   return W / 2 - CORNER_R + Math.sqrt(Math.max(0, CORNER_R * CORNER_R - dz * dz));
 }
 
+/** Texture de glace : léger grain et rayures de patins, pour sentir le mouvement. */
+function iceTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#eef5fa';
+  g.fillRect(0, 0, 512, 512);
+  // grain
+  for (let i = 0; i < 2600; i++) {
+    const v = 225 + Math.floor(Math.random() * 25);
+    g.fillStyle = `rgba(${v - 10},${v},${v + 8},0.5)`;
+    g.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+  }
+  // rayures de patins (traits légèrement courbes)
+  g.lineCap = 'round';
+  for (let i = 0; i < 120; i++) {
+    g.strokeStyle = `rgba(160,185,205,${0.12 + Math.random() * 0.18})`;
+    g.lineWidth = 0.6 + Math.random() * 1.2;
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const a = Math.random() * Math.PI;
+    const l = 30 + Math.random() * 110;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + 8, y + Math.sin(a) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  // ShapeGeometry : coordonnées UV en mètres → une tuile de 512 px tous les 4 m
+  t.repeat.set(1 / 4, 1 / 4);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
 function buildRink(scene) {
   const outline = rinkOutline(12);
   const shape = new THREE.Shape(outline.map((p) => new THREE.Vector2(p.x, -p.z)));
-  const ice = new THREE.Mesh(new THREE.ShapeGeometry(shape), std(0xf2f8fc, { roughness: 0.25 }));
+  const ice = new THREE.Mesh(new THREE.ShapeGeometry(shape), std(0xffffff, { roughness: 0.25, map: iceTexture() }));
   ice.rotation.x = -Math.PI / 2;
   scene.add(ice);
 
@@ -553,6 +589,8 @@ export function createWorld(canvas) {
 
   // Vue à la 3e personne (option) : caméra derrière et au-dessus du joueur, qui est visible.
   let third = false;
+  let baseFov3 = 60;
+  const chase = { yaw: null, speed: 0, t: performance.now(), bob: 0 };
   let meMesh = null;
   let meHand = 'R';
   const meGroup = new THREE.Group();
@@ -576,10 +614,11 @@ export function createWorld(canvas) {
     renderer.setSize(w, h, false);
     const aspect = w / h;
     if (third) {
-      // 3e personne : champ plus classique (95° en paysage, 75° en portrait).
+      // 3e personne : champ plus classique (95° en paysage, 58° en portrait).
       const t3 = (aspect < 1 ? 58 : 95) * DEG;
       let v3 = 2 * Math.atan(Math.tan(t3 / 2) / aspect);
       v3 = Math.min(110 * DEG, Math.max(40 * DEG, v3));
+      baseFov3 = v3 / DEG;
       camera.fov = v3 / DEG;
       camera.aspect = aspect;
       camera.updateProjectionMatrix();
@@ -620,20 +659,38 @@ export function createWorld(canvas) {
       myStick.visible = !third && myStickWanted;
     },
     /** Caméra 3e personne : derrière et au-dessus du joueur, dans la direction du regard. */
-    setChase(x, z, bodyYaw, viewYaw) {
+    setChase(x, z, bodyYaw, viewYaw, speed = 0) {
       if (meMesh) {
         animateTo(meMesh, x, z);
         meMesh.rotation.y = bodyYaw;
       }
       // Un peu en hauteur derrière la tête ; on vise devant le joueur pour le voir en bas de l'écran
       // avec sa crosse et le palet, et le jeu devant lui.
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - chase.t) / 1000);
+      chase.t = now;
+      // La caméra suit le regard avec un léger retard (on sent les virages)…
+      if (chase.yaw == null) chase.yaw = viewYaw;
+      const dy = Math.atan2(Math.sin(viewYaw - chase.yaw), Math.cos(viewYaw - chase.yaw));
+      chase.yaw += dy * Math.min(1, dt * 6);
+      // … et recule, s'abaisse et s'élargit avec la vitesse (on sent la vitesse).
+      chase.speed += (Math.abs(speed) - chase.speed) * Math.min(1, dt * 3);
+      const k = Math.min(1, chase.speed / 4.8);
+      chase.bob += dt * (6 + chase.speed * 2);
+      const bob = Math.sin(chase.bob) * 0.05 * k;
+      const yaw = chase.yaw;
       const portrait = camera.aspect < 1;
-      const back = portrait ? 4.4 : 4.6;
-      const height = portrait ? 3.6 : 3.9;
+      const back = (portrait ? 4.4 : 4.6) + 1.1 * k;
+      const height = (portrait ? 3.6 : 3.9) - 0.5 * k + bob;
       const ahead = portrait ? 16 : 6.5;
       camera.up.set(0, 1, 0);
-      camera.position.set(x - Math.sin(viewYaw) * back, height, z - Math.cos(viewYaw) * back);
-      camera.lookAt(x + Math.sin(viewYaw) * ahead, 0, z + Math.cos(viewYaw) * ahead);
+      camera.position.set(x - Math.sin(yaw) * back, height, z - Math.cos(yaw) * back);
+      camera.lookAt(x + Math.sin(yaw) * ahead, 0, z + Math.cos(yaw) * ahead);
+      const fov = baseFov3 * (1 + 0.14 * k);
+      if (Math.abs(camera.fov - fov) > 0.05) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
     },
     setHand(hand) {
       meHand = hand;

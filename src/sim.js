@@ -387,7 +387,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       if (me.speed === 0) me.braking = false;
     }
     // On peut tourner même à l'arrêt (pivot sur les patins), pour faire demi-tour facilement.
-    me.yaw = wrap(me.yaw - turnRate(clamp(input.turn || 0, -1, 1)) * dt);
+    me.yaw = wrap(me.yaw - turnRate(clamp(input.turn || 0, -1, 1)) * (input.turnBoost || 1) * dt);
     // La tête suit le corps (plus de regard séparé) ; on garde la possibilité pour plus tard.
     const headTarget = input.headAngle != null ? clamp(input.headAngle, -2.9, 2.9) : clamp(input.head || 0, -1, 1) * 2.3;
     me.head += (headTarget - me.head) * Math.min(1, dt * 6);

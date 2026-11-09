@@ -102,6 +102,7 @@ function renderMenu() {
 }
 
 function goMenu() {
+  $('#speedfx').style.opacity = '0';
   stopDrill();
   world.showMe(false);
   G.tuto = null;
@@ -204,11 +205,11 @@ function beginPlay() {
 // le regard revient vers l'avant. Un swipe rapide vers le haut, dans n'importe quelle zone,
 // fait la passe ou le tir.
 const LOOK_SENS = 1.3; // glisser sur toute la largeur de l'écran = tourner la tête de 1,3 × le champ de vision
-const FULL_SPEED_PX = 90; // pouce à 90 px du point de départ = vitesse maximale
+const FULL_SPEED_PX = 62; // pouce à 62 px du point de départ = vitesse maximale
 let lookId = null;
 let headLook = 0;
 const DEG = Math.PI / 180;
-const DEAD = 16; // px : petite zone morte autour du point de départ
+const DEAD = 12; // px : petite zone morte autour du point de départ
 const input = { skate: false, back: false, brake: false, turn: 0, throttle: 1, head: 0, headAngle: null };
 const pointers = new Map();
 let skateId = null;
@@ -273,6 +274,7 @@ function updateInput() {
   input.throttle = sp ? clamp((Math.hypot(st.dx, st.dy) - DEAD) / (FULL_SPEED_PX - DEAD), 0.3, 1) : 1;
   // Vision : tant que le 2e doigt est posé, la tête suit son glissement ; sinon elle revient devant.
   input.headAngle = lookId != null ? headLook : null;
+  input.turnBoost = G.view3 ? 1.35 : 1; // 3e personne : rotation plus vive
   input.head = 0;
   showStick(sp, st);
 }
@@ -889,7 +891,9 @@ function syncRender() {
     world.showMe(true);
     world.setHolding(false);
     world.puck.position.set(p.x, p.y, p.z);
-    world.setChase(st.me.x, st.me.z, st.me.yaw, st.me.yaw + st.me.head);
+    world.setChase(st.me.x, st.me.z, st.me.yaw, st.me.yaw + st.me.head, st.me.speed);
+    // Lignes de vitesse sur les bords de l'écran quand on va vite
+    $('#speedfx').style.opacity = String(Math.max(0, Math.min(0.6, (Math.abs(st.me.speed) - 3) / 2)));
     return;
   }
   world.showMe(false);
