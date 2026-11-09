@@ -125,6 +125,7 @@ const ME_MAX = 4.8; // vitesse de patinage max (m/s)
 const ME_MAX_PUCK = 4.2; // un peu moins vite avec le palet
 const ME_BACK = 3.2; // patinage à reculons
 const ME_ACCEL = 5; // accélération (m/s²)
+const ME_REVERSE = 16; // changement de sens avant ↔ arrière (m/s²) : quasi immédiat
 // Rythme général des autres patineurs : ralenti dans la même proportion que le joueur (4,8 / 6,5)
 // pour garder l'équilibre des situations.
 const PACE = 0.75;
@@ -370,14 +371,18 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     if (input.skate || input.back) me.braking = false;
     if (input.back) {
       // Reculer : vitesse selon la distance du pouce, comme en avant.
+      // Si on allait encore en avant, on freine fort pour changer de sens tout de suite.
       const target = -ME_BACK * clamp(input.throttle ?? 1, 0.4, 1);
-      if (me.speed > target) me.speed = Math.max(target, me.speed - ME_ACCEL * dt);
+      const acc = me.speed > 0 ? ME_REVERSE : ME_ACCEL;
+      if (me.speed > target) me.speed = Math.max(target, me.speed - acc * dt);
       else me.speed = Math.min(target, me.speed + GLIDE * dt);
     }
     else if (input.skate) {
       // Vitesse visée selon la distance du pouce ; au-dessus, on ralentit en glissant.
       const target = max * clamp(input.throttle ?? 1, 0.3, 1);
-      if (me.speed < target) me.speed = Math.min(target, me.speed + ME_ACCEL * dt);
+      // Si on reculait encore, on freine fort pour repartir en avant tout de suite.
+      const acc = me.speed < 0 ? ME_REVERSE : ME_ACCEL;
+      if (me.speed < target) me.speed = Math.min(target, me.speed + acc * dt);
       else me.speed = Math.max(target, me.speed - GLIDE * dt);
     }
     else {

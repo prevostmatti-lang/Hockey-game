@@ -200,3 +200,16 @@ test('une-deux : si le joueur reste immobile et marqué, le coéquipier ne rend 
   for (let i = 0; i < 1.5 / DT && !st.over; i++) sim.step(DT, {});
   assert.ok(!st.returned, 'pas de une-deux sans se démarquer');
 });
+
+test('changement de sens avant ↔ arrière quasi immédiat', () => {
+  const sim = createSim(scn('u9-2'), U9, 'R');
+  const me = sim.state.me;
+  for (let i = 0; i < 1 / DT; i++) sim.step(DT, { back: true });
+  assert.ok(me.speed < -2);
+  let t = 0;
+  while (me.speed < 0 && t < 2) {
+    sim.step(DT, { skate: true });
+    t += DT;
+  }
+  assert.ok(t < 0.3, `repart en avant en ${t.toFixed(2)} s`);
+});

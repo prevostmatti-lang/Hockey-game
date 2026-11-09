@@ -249,9 +249,9 @@ function readStick(sp) {
   const r = Math.hypot(dx, dy);
   if (r < DEAD) return { zone: 'push', theta: 0, dx, dy };
   const theta = Math.atan2(dx, -dy);
-  // Pouce vers le haut ou sur le côté : on avance et on tourne.
-  // Pouce vers le bas, même en biais (au-delà de 105°) : on recule, et on se dirige en reculant.
-  if (Math.abs(theta) <= 105 * DEG) return { zone: 'push', theta, dx, dy };
+  // Moitié haute du joystick : marche avant (on tourne selon l'angle, au maximum à 90°).
+  // Moitié basse : marche arrière (on se dirige avec l'écart gauche/droite).
+  if (dy <= 0) return { zone: 'push', theta: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, theta)), dx, dy };
   return { zone: 'back', theta, dx, dy };
 }
 
