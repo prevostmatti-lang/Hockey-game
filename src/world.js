@@ -97,7 +97,7 @@ function iceTexture() {
   // ShapeGeometry : coordonnées UV en mètres → une tuile de 512 px tous les 4 m
   t.repeat.set(1 / 4, 1 / 4);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
+  t.anisotropy = 4;
   return t;
 }
 
@@ -611,6 +611,9 @@ export function createWorld(canvas) {
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    // Grands écrans (tablettes) : on limite le nombre de pixels dessinés pour rester fluide.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(w * h * dpr * dpr > 2.6e6 ? Math.max(1, Math.sqrt(2.6e6 / (w * h))) : dpr);
     renderer.setSize(w, h, false);
     const aspect = w / h;
     if (third) {

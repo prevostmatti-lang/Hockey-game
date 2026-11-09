@@ -1,5 +1,5 @@
 // Service worker : le jeu fonctionne hors ligne (utile à la patinoire).
-const CACHE = 'tetehaute-v28';
+const CACHE = 'tetehaute-v29';
 const FILES = [
   './',
   'index.html',
