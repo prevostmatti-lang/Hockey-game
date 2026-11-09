@@ -25,7 +25,7 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 
 | Geste | Action |
 |---|---|
-| 🕹️ Pouce dans la zone de déplacement | moitié haute du joystick = marche avant (plus loin = plus vite, sur le côté = tourner, rotation exponentielle) ; moitié basse = marche arrière (en bas à gauche : reculer vers la gauche). Le changement de sens est quasi immédiat. |
+| 🕹️ Pouce dans la zone de déplacement | pousser = marche avant (plus loin = plus vite) ; la rotation suit l'écart horizontal du pouce (exponentielle). Marche arrière quand le pouce descend nettement sous le point de départ, retour en avant dès qu'il remonte au-dessus ; pouce sur le côté = on garde son sens de marche. Le changement de sens est quasi immédiat. |
 | 👀 Glisser (zone de vision) | tourner la tête sans changer de direction ; le regard revient devant quand on lève le doigt |
 | ⬆️ Swipe rapide vers le haut (n'importe où) | passe ou tir dans la direction du swipe ; plus le swipe est rapide, plus c'est fort |
 | ⬆️ Swipe **long** vers le haut | **passe levée** : le palet passe au-dessus des crosses adverses |

@@ -206,6 +206,8 @@ function beginPlay() {
 // fait la passe ou le tir.
 const LOOK_SENS = 1.3; // glisser sur toute la largeur de l'écran = tourner la tête de 1,3 × le champ de vision
 const FULL_SPEED_PX = 62; // pouce à 62 px du point de départ = vitesse maximale
+const TURN_PX = 95; // écart horizontal du pouce pour la rotation maximale
+const BACK_PX = 26; // il faut descendre d'au moins 26 px sous le point de départ pour reculer
 let lookId = null;
 let headLook = 0;
 const DEG = Math.PI / 180;
@@ -249,10 +251,16 @@ function readStick(sp) {
   const r = Math.hypot(dx, dy);
   if (r < DEAD) return { zone: 'push', theta: 0, dx, dy };
   const theta = Math.atan2(dx, -dy);
-  // Moitié haute du joystick : marche avant (on tourne selon l'angle, au maximum à 90°).
-  // Moitié basse : marche arrière (on se dirige avec l'écart gauche/droite).
-  if (dy <= 0) return { zone: 'push', theta: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, theta)), dx, dy };
-  return { zone: 'back', theta, dx, dy };
+  // Avant / arrière avec une marge (hystérésis) pour éviter les bascules quand le pouce est sur le côté :
+  //  - on passe en marche arrière seulement si le pouce descend nettement sous le point de départ
+  //    (plus de BACK_PX, et plus bas que de côté) ;
+  //  - on repasse en marche avant dès que le pouce remonte au-dessus du point de départ ;
+  //  - entre les deux (pouce sur le côté), on garde le sens en cours.
+  let back = sp.back || false;
+  if (!back && dy > BACK_PX && dy > Math.abs(dx) * 0.6) back = true;
+  else if (back && dy < -4) back = false;
+  sp.back = back;
+  return { zone: back ? 'back' : 'push', theta, dx, dy };
 }
 
 function updateInput() {
@@ -262,10 +270,14 @@ function updateInput() {
   input.back = (st && st.zone === 'back') || keys.has('ArrowDown') || keys.has('s');
   input.brake = brakePulse || keys.has('b');
   brakePulse = false;
-  // Angle du pouce (0 à 90°) ; la réponse exponentielle est appliquée dans la simulation (sim.js : turnRate).
-  let turn = st && st.zone === 'push' ? clamp(st.theta / (90 * DEG), -1, 1) : 0;
-  // En reculant : pouce en bas à gauche = reculer vers la gauche (le corps tourne doucement).
-  if (st && st.zone === 'back') turn = clamp(-st.dx / 70, -1, 1) * 0.75;
+  // Rotation proportionnelle à l'écart HORIZONTAL du pouce (pas à son angle) : un pouce un peu
+  // décalé tourne doucement, il faut l'écarter franchement pour tourner vite. La réponse
+  // exponentielle est appliquée dans la simulation (sim.js : turnRate).
+  let turn = 0;
+  if (st && Math.hypot(st.dx, st.dy) >= DEAD) {
+    turn = clamp(st.dx / TURN_PX, -1, 1);
+    if (st.zone === 'back') turn = -turn * 0.75; // en reculant : bas-gauche = reculer vers la gauche
+  }
   if (keys.has('ArrowLeft')) turn = -1;
   if (keys.has('ArrowRight')) turn = 1;
   input.turn = turn;
@@ -274,7 +286,7 @@ function updateInput() {
   input.throttle = sp ? clamp((Math.hypot(st.dx, st.dy) - DEAD) / (FULL_SPEED_PX - DEAD), 0.3, 1) : 1;
   // Vision : tant que le 2e doigt est posé, la tête suit son glissement ; sinon elle revient devant.
   input.headAngle = lookId != null ? headLook : null;
-  input.turnBoost = G.view3 ? 1.35 : 1; // 3e personne : rotation plus vive
+  input.turnBoost = 1;
   input.head = 0;
   showStick(sp, st);
 }
