@@ -8,6 +8,15 @@ Le brief complet est dans [`docs/BRIEF.md`](docs/BRIEF.md).
 
 **📅 Programme d'entraînement** : 3 séances de 15 min par semaine, du 9 novembre 2026 à fin avril 2027, fondé sur les recommandations des fédérations et la recherche. Voir [`docs/PROGRAMME.md`](docs/PROGRAMME.md).
 
+## Menus et jeux
+
+- **Accueil** : logo du club, gros bouton **▶ JOUER**, et trois tuiles : 📅 Mon programme, 🎓 Tutoriel, ⚙️ Réglages. Derrière, les joueurs s'échauffent dans une patinoire pleine de public.
+- **Choisis ton jeu** (bouton JOUER) : on choisit sa catégorie (U9, U11, U13), puis un jeu, **sans passer par le programme** :
+  - 🏒 Sur la glace : ⚔️ **Attaque** et 🛡️ **Défense** (3 situations à étoiles), 🎲 **Situations surprises** (attaque et défense au hasard, toujours renouvelées, 3 vies : une situation est réussie avec 2 étoiles ou plus), 🥅 **Tirs au but** (5 tirs face à un gardien qui change de style à chaque tir ; en U11 et U13, un défenseur te poursuit).
+  - 🧠 Cerveau de hockeyeur (2 min) : **Lis le jeu**, **Arrêt sur image**, **Mémoire de glace**.
+  - Chaque jeu garde son **record** (sur l'appareil).
+- **Réglages** : vue 1re ou 3e personne, palette gaucher ou droitier, son et voix, et « Comment jouer ».
+
 ## Comment on joue
 
 Au premier lancement, l'enfant choisit **droitier** (palette à droite) ou **gaucher** (palette à gauche).
@@ -34,10 +43,10 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | Double tap | freiner |
 
 ### Vue 1re ou 3e personne
-Dans le menu, **Vue : 👁️ 1re personne / 🎥 3e personne**. En 3e personne, la caméra est derrière et au-dessus du joueur (repéré par un anneau jaune), qui est visible avec sa crosse et le palet ; la zone de vision fait tourner la caméra autour de lui. Les contrôles sont les mêmes. Les exercices courts du programme restent en 1re personne.
+Dans les **Réglages**, **Vue : 1re personne / 3e personne**. En 3e personne, la caméra est derrière et au-dessus du joueur (repéré par un anneau jaune), qui est visible avec sa crosse et le palet ; la zone de vision fait tourner la caméra autour de lui. Les contrôles sont les mêmes. Les exercices courts du programme restent en 1re personne.
 
 ### Tutoriel
-Dans le menu, **🎓 Tutoriel** : un parcours guidé de 2 minutes. Chaque étape est validée automatiquement quand le geste est réussi : avancer, tourner, reculer, freiner (double tap), regarder autour, faire une passe, tirer dans une cible verte. Le bouton est mis en avant tant que le tutoriel n'a pas été fait.
+À l'accueil, **🎓 Tutoriel** : un parcours guidé de 2 minutes. Chaque étape est validée automatiquement quand le geste est réussi : avancer, tourner, reculer, freiner (double tap), regarder autour, faire une passe, tirer dans une cible verte. Le bouton est mis en avant tant que le tutoriel n'a pas été fait.
 
 ### Aide à la passe
 Un swipe à peu près vers un coéquipier est corrigé vers lui en anticipant sa course (≈ 34° en U9, 22° en U11, 14° en U13), et la passe n'est pas plus forte que ce qu'il peut contrôler. Pour un droitier (palette à droite), une passe vers la gauche est un coup droit et vers la droite un revers ; la crosse fait le geste correspondant à l'écran.

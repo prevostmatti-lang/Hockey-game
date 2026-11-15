@@ -39,27 +39,66 @@
       </div>
     </section>
 
-    <!-- Menu -->
-    <section id="menu" class="screen" hidden>
-      <div class="card menu-card">
-        <h1>Tête haute ! <span aria-hidden="true">🏒</span></h1>
-        <p class="tagline">Regarde. Décide. Marque.</p>
-        <button id="btn-tuto" class="btn big tuto-btn"></button>
-        <button id="btn-program" class="btn big program-btn">📅 Mon programme · 3 × 15 min par semaine</button>
-        <h2>Ou joue librement</h2>
-        <div id="levels"></div>
-        <h2>Comment jouer</h2>
-        <ul class="controls">
-          <li><span class="ico">🕹️</span><span><b>Zone de déplacement</b> (moitié gauche à l’horizontale, moitié basse à la verticale) : c’est ton joystick. Pousse pour patiner (plus loin = plus vite), sur le côté pour tourner, vers le bas pour reculer.</span></li>
-          <li><span class="ico">👀</span><span><b>Zone de vision</b> (l’autre moitié) : glisse pour regarder autour de toi. Lève le doigt et ton regard revient devant.</span></li>
-          <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer, dans la direction voulue. Plus tu swipes vite, plus c’est fort ; un swipe <b>très long</b> fait une <b>passe levée</b> par-dessus les crosses.</span></li>
-          <li><span class="ico">🥅</span><span>Swipe <b>vers le but</b> : le jeu ralentit et la <b>cage</b> apparaît. Touche vite une <b>cible verte</b> (trou libre) pour tirer dedans ; les rouges sont couvertes par le gardien.</span></li>
-          <li><span class="ico">🛑</span><span><b>Lâche l’écran</b> : tu glisses en ralentissant. <b>Tape deux fois</b> : tu freines.</span></li>
-          <li><span class="ico">⬇️</span><span><b>Tire nettement ton pouce vers le bas</b> pour la marche arrière ; remonte-le pour repartir en avant. Pouce sur le côté : tu gardes ton sens de marche et tu tournes.</span></li>
-        </ul>
-        <p class="hand-line">Vue : <span class="seg"><button class="view-btn" data-view="1">👁️ 1re personne</button><button class="view-btn" data-view="3">🎥 3e personne</button></span></p>
-        <p class="hand-line">Palette <b id="hand-label"></b> · <button id="btn-hand" class="link">changer</button></p>
-        <p id="portrait-tip" class="tip">📱 Le jeu se joue à l’horizontale : tourne ton téléphone.</p>
+    <!-- Accueil -->
+    <section id="home" class="screen home" hidden>
+      <div class="home-wrap">
+        <img class="home-logo" src="assets/logo-club-detoure.png" alt="Logo du club" />
+        <h1 class="home-title">Tête haute !</h1>
+        <p class="home-tag">Regarde. Décide. Marque.</p>
+        <button id="home-play" class="btn huge play-btn">▶ JOUER</button>
+        <div class="home-tiles">
+          <button id="btn-program" class="tile"><span class="t-ico">📅</span><span class="t-name">Mon programme</span><span class="t-sub">3 × 15 min / semaine</span></button>
+          <button id="btn-tuto" class="tile"><span class="t-ico">🎓</span><span class="t-name">Tutoriel</span><span class="t-sub" id="tuto-sub">les gestes en 2 min</span></button>
+          <button id="home-settings" class="tile"><span class="t-ico">⚙️</span><span class="t-name">Réglages</span><span class="t-sub">vue, palette, son</span></button>
+        </div>
+        <p class="home-foot"><span id="home-profile"></span> · <span id="home-stars"></span></p>
+      </div>
+    </section>
+
+    <!-- Choix du jeu -->
+    <section id="hub" class="screen menu-screen" hidden>
+      <div class="panel">
+        <header class="panel-head">
+          <button class="back-btn" data-go="home" aria-label="Retour">‹</button>
+          <h2>Choisis ton jeu</h2>
+          <span class="head-space"></span>
+        </header>
+        <div class="cat-row">
+          <span class="cat-label">Catégorie</span>
+          <div id="hub-cats" class="seg cats"></div>
+        </div>
+        <div class="panel-body">
+          <p class="group-title">🏒 Sur la glace</p>
+          <div id="games-ice" class="games"></div>
+          <p class="group-title">🧠 Cerveau de hockeyeur <span class="group-sub">(2 minutes)</span></p>
+          <div id="games-brain" class="games"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Réglages -->
+    <section id="settings" class="screen menu-screen" hidden>
+      <div class="panel">
+        <header class="panel-head">
+          <button class="back-btn" data-go="home" aria-label="Retour">‹</button>
+          <h2>Réglages</h2>
+          <span class="head-space"></span>
+        </header>
+        <div class="panel-body">
+          <div class="set-row"><span class="set-name">🎥 Vue</span><span class="seg"><button class="view-btn" data-view="1">1re personne</button><button class="view-btn" data-view="3">3e personne</button></span></div>
+          <div class="set-row"><span class="set-name">🏒 Palette</span><span class="seg"><button class="hand-set" data-hand="L">Gaucher</button><button class="hand-set" data-hand="R">Droitier</button></span></div>
+          <div class="set-row"><span class="set-name">🔊 Son et voix</span><span class="seg"><button class="snd-set" data-snd="1">Activé</button><button class="snd-set" data-snd="0">Coupé</button></span></div>
+          <p class="group-title">🕹️ Comment jouer</p>
+          <ul class="controls">
+            <li><span class="ico">🕹️</span><span><b>Zone de déplacement</b> (moitié gauche à l’horizontale, moitié basse à la verticale) : c’est ton joystick. Pousse pour patiner (plus loin = plus vite), sur le côté pour tourner.</span></li>
+            <li><span class="ico">⬇️</span><span><b>Pouce vers le bas</b> et garde-le un instant : marche arrière. Remonte-le pour repartir en avant.</span></li>
+            <li><span class="ico">👀</span><span><b>Zone de vision</b> (l’autre moitié) : glisse pour regarder autour de toi. Lève le doigt et ton regard revient devant.</span></li>
+            <li><span class="ico">⬆️</span><span><b>Swipe vers le haut</b> pour passer ou tirer. Plus tu swipes vite, plus c’est fort ; un swipe <b>très long</b> fait une <b>passe levée</b>.</span></li>
+            <li><span class="ico">🥅</span><span>Swipe <b>vers le but</b> : le jeu ralentit et la cage apparaît. Touche vite une <b>cible verte</b> (trou libre).</span></li>
+            <li><span class="ico">🛑</span><span><b>Lâche l’écran</b> : tu glisses. <b>Tape deux fois</b> : tu freines.</span></li>
+            <li><span class="ico">🚩</span><span><b>Hors-jeu</b> : n’entre pas dans la zone adverse avant le palet.</span></li>
+          </ul>
+        </div>
       </div>
     </section>
 
@@ -79,7 +118,7 @@
           <ol id="prog-calendar"></ol>
         </details>
         <div class="row">
-          <button id="prog-back" class="btn ghost">Menu</button>
+          <button id="prog-back" class="btn ghost">‹ Accueil</button>
         </div>
       </div>
     </section>
@@ -105,7 +144,7 @@
         <p id="intro-text"></p>
         <p id="intro-goal" class="goal"></p>
         <div class="row">
-          <button id="intro-back" class="btn ghost">Menu</button>
+          <button id="intro-back" class="btn ghost">‹ Retour</button>
           <button id="btn-go" class="btn big">C’est parti !</button>
         </div>
       </div>
@@ -208,7 +247,7 @@
         <p id="sum-stars" class="stars big"></p>
         <p id="sum-text"></p>
         <div class="row">
-          <button id="btn-menu" class="btn ghost">Menu</button>
+          <button id="btn-menu" class="btn ghost">‹ Jeux</button>
           <button id="btn-again" class="btn big">Rejouer</button>
         </div>
       </div>

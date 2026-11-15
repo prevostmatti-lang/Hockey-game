@@ -153,18 +153,86 @@ function buildRink(scene) {
       scene.add(m);
     }
   }
-  // Tribunes
-  for (const [sx, sz, x, z] of [
-    [W + 30, 10, 0, -L / 2 - 6],
-    [W + 30, 10, 0, L / 2 + 6],
-    [10, L, -W / 2 - 6, 0],
-    [10, L, W / 2 + 6, 0],
-  ]) {
-    const st = new THREE.Mesh(new THREE.BoxGeometry(sx, 8, sz), std(0x24344f));
-    st.position.set(x, 3, z);
-    scene.add(st);
-  }
+  buildArena(scene);
   addLogos(scene);
+}
+
+/**
+ * Aréna : gradins en escalier tout autour, public (une seule « instanced mesh » : léger),
+ * projecteurs au plafond et bannières. Ambiance de match sans alourdir le rendu.
+ */
+function buildArena(scene) {
+  const stepMat = std(0x2b3a55);
+  const seatMats = [0x1e66f5, 0x0b2545, 0x27406b];
+  const ROWS = 7;
+  const crowdPos = [];
+  // Quatre côtés : chaque gradin est un « escalier » de boîtes qui s'éloigne de la bande.
+  const sides = [
+    { axis: 'z', at: -L / 2 - 1.2, dir: -1, len: W + 22 },
+    { axis: 'z', at: L / 2 + 1.2, dir: 1, len: W + 22 },
+    { axis: 'x', at: -W / 2 - 1.2, dir: -1, len: L - 4 },
+    { axis: 'x', at: W / 2 + 1.2, dir: 1, len: L - 4 },
+  ];
+  for (const sd of sides) {
+    for (let r = 0; r < ROWS; r++) {
+      const off = sd.at + sd.dir * (r * 0.9 + 0.45);
+      const h = 2.4 + r * 0.55;
+      const geo = sd.axis === 'z' ? new THREE.BoxGeometry(sd.len, h, 0.9) : new THREE.BoxGeometry(0.9, h, sd.len);
+      const m = new THREE.Mesh(geo, r % 3 === 2 ? std(seatMats[Math.floor(r / 3) % 3]) : stepMat);
+      if (sd.axis === 'z') m.position.set(0, h / 2, off);
+      else m.position.set(off, h / 2, 0);
+      scene.add(m);
+      // spectateurs sur la marche (pas partout : des places vides, c'est plus vrai)
+      const n = Math.floor(sd.len / 0.75);
+      for (let i = 0; i < n; i++) {
+        if (Math.random() < 0.4) continue;
+        const t = -sd.len / 2 + (i + 0.5) * (sd.len / n) + (Math.random() - 0.5) * 0.2;
+        const pos = sd.axis === 'z' ? [t, h, off] : [off, h, t];
+        crowdPos.push({ pos, face: sd.axis === 'z' ? (sd.dir > 0 ? Math.PI : 0) : sd.dir > 0 ? -Math.PI / 2 : Math.PI / 2 });
+      }
+    }
+  }
+  // Public : un corps (capsule) et une tête par spectateur, couleurs variées (beaucoup de bleu club).
+  const bodyGeo = new THREE.BoxGeometry(0.38, 0.62, 0.28);
+  const headGeo = new THREE.IcosahedronGeometry(0.14, 0);
+  const bodies = new THREE.InstancedMesh(bodyGeo, new THREE.MeshLambertMaterial(), crowdPos.length);
+  const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshLambertMaterial(), crowdPos.length);
+  const palette = [0x1e66f5, 0x2456b8, 0x0b2545, 0x0b2545, 0x3a3f4a, 0x2b2f38, 0x6b7a90, 0xd9dde3, 0xf5c518, 0xb33a3f];
+  const skins = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
+  const m4 = new THREE.Matrix4();
+  const col = new THREE.Color();
+  crowdPos.forEach((c, i) => {
+    const [x, y, z] = c.pos;
+    m4.makeRotationY(c.face);
+    m4.setPosition(x, y + 0.42, z);
+    bodies.setMatrixAt(i, m4);
+    bodies.setColorAt(i, col.setHex(palette[(Math.random() * palette.length) | 0]));
+    m4.setPosition(x, y + 0.95, z);
+    heads.setMatrixAt(i, m4);
+    heads.setColorAt(i, col.setHex(skins[(Math.random() * skins.length) | 0]));
+  });
+  scene.add(bodies, heads);
+  // Plafond sombre et rampes de projecteurs au-dessus de la glace.
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6dc });
+  const rigMat = std(0x3a4454);
+  for (const x of [-8, 0, 8]) {
+    const rig = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, L - 8), rigMat);
+    rig.position.set(x, 16, 0);
+    scene.add(rig);
+    for (let z = -24; z <= 24; z += 6) {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.8), lampMat);
+      lamp.position.set(x, 15.8, z);
+      scene.add(lamp);
+    }
+  }
+  // Bannières du club suspendues aux bouts de la patinoire.
+  for (const z of [-L / 2 - 4, L / 2 + 4]) {
+    for (const x of [-9, -3, 3, 9]) {
+      const ban = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.4), std(x % 2 ? 0x1e66f5 : 0xf5c518, { side: THREE.DoubleSide }));
+      ban.position.set(x, 11.5, z);
+      scene.add(ban);
+    }
+  }
 }
 
 /**
@@ -418,74 +486,248 @@ function makeStick({ hand = 'R', goalie = false } = {}) {
   return g;
 }
 
+// Matériaux partagés (une seule copie pour tous les joueurs : plus léger sur téléphone).
+const MAT = {};
+function mat(key, color, extra) {
+  if (!MAT[key]) MAT[key] = std(color, extra);
+  return MAT[key];
+}
+const BACK_TEX = new Map();
+/** Numéro imprimé dans le dos du maillot. */
+function backNumber(num) {
+  const key = String(num);
+  if (!BACK_TEX.has(key)) {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const g = c.getContext('2d');
+    g.font = `900 ${key.length > 2 ? 52 : 86}px system-ui, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineWidth = 10;
+    g.strokeStyle = '#0b2545';
+    g.strokeText(key, 64, 70);
+    g.fillStyle = '#ffffff';
+    g.fillText(key, 64, 70);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    BACK_TEX.set(key, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  }
+  return BACK_TEX.get(key);
+}
+
+/**
+ * Fusionne les pièces d'un groupe qui partagent le même matériau (une seule pièce à dessiner par
+ * matériau au lieu de dizaines) : beaucoup plus fluide sur téléphone. Les sous-groupes animés
+ * (jambes) ne sont pas touchés.
+ */
+function mergeByMaterial(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const buckets = new Map();
+  for (const ch of [...group.children]) {
+    if (!ch.isMesh || ch.material.map) continue;
+    const geo = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
+    geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, ch.matrixWorld));
+    if (!buckets.has(ch.material)) buckets.set(ch.material, []);
+    buckets.get(ch.material).push(geo);
+    group.remove(ch);
+  }
+  for (const [m, geos] of buckets) {
+    let n = 0;
+    for (const g2 of geos) n += g2.attributes.position.count;
+    const pos = new Float32Array(n * 3);
+    const nor = new Float32Array(n * 3);
+    let o = 0;
+    for (const g2 of geos) {
+      pos.set(g2.attributes.position.array, o * 3);
+      if (g2.attributes.normal) nor.set(g2.attributes.normal.array, o * 3);
+      o += g2.attributes.position.count;
+      g2.dispose();
+    }
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    merged.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    group.add(new THREE.Mesh(merged, m));
+  }
+}
+
+/**
+ * Joueur de hockey (environ 1,75 m) : patins avec lame, bas rayés, culotte, maillot avec épaulières
+ * et bandes, gants, casque avec grille, numéro dans le dos. Gardien : jambières, bouclier, mitaine,
+ * plastron et masque. Jambes articulées à la hanche (foulées), corps qui se penche (voir animateTo).
+ */
 function makePlayer({ team, num, goalie, hand = 'R', me = false }) {
   const g = new THREE.Group();
-  const jerseyColor = team ? COLORS.team : COLORS.opp;
-  const jersey = std(jerseyColor);
-  const dark = std(COLORS.dark);
-  const white = std(0xffffff);
+  const jc = team ? COLORS.team : COLORS.opp;
+  const tk = team ? 'T' : 'O';
+  const jersey = mat('jersey' + tk, jc);
+  const trim = mat('trim' + tk, team ? 0x0b2545 : 0x7a1020);
+  const white = mat('white', 0xf4f6f8);
+  const dark = mat('dark', COLORS.dark);
+  const steel = mat('steel', 0xc9d1d9, { metalness: 0.7, roughness: 0.25 });
+  const skin = mat('skin', COLORS.skin);
+  const cyl = (rt, rb, h, m, seg = 12) => new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
 
+  // --- Jambes (articulées à la hanche)
   const legs = [];
-  for (const s of [-0.13, 0.13]) {
-    // Jambe articulée à la hanche (pour les foulées)
+  for (const sx of [-0.12, 0.12]) {
     const hip = new THREE.Group();
-    hip.position.set(s, 0.68, 0);
-    const skate = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.34), dark);
-    skate.position.set(0, -0.62, 0.04);
-    hip.add(skate);
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.38), std(0xb8c2cc, { metalness: 0.6, roughness: 0.3 }));
-    blade.position.set(0, -0.68, 0.04);
+    hip.position.set(sx, 0.7, 0);
+    // bas : couleur du maillot avec deux bandes
+    const sock = cyl(0.085, 0.075, 0.42, goalie ? white : jersey, 12);
+    sock.position.y = -0.3;
+    hip.add(sock);
+    if (!goalie) {
+      for (const y of [-0.22, -0.3]) {
+        const st = cyl(0.087, 0.087, 0.035, y === -0.22 ? white : trim, 12);
+        st.position.y = y;
+        hip.add(st);
+      }
+    }
+    // patin : chaussure, embout, support et lame
+    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.2, 3, 8), dark);
+    boot.rotation.x = Math.PI / 2;
+    boot.position.set(0, -0.6, 0.05);
+    hip.add(boot);
+    const cuff = cyl(0.075, 0.07, 0.1, dark, 12);
+    cuff.position.y = -0.53;
+    hip.add(cuff);
+    const holder = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.3), white);
+    holder.position.set(0, -0.66, 0.05);
+    hip.add(holder);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.025, 0.33), steel);
+    blade.position.set(0, -0.69, 0.05);
     hip.add(blade);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.55, 10), goalie ? white : jersey);
-    leg.position.set(0, -0.28, 0);
-    hip.add(leg);
+    if (goalie) {
+      // jambière : grand bloc blanc arrondi, bord de la couleur de l'équipe
+      const pad = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.5, 3, 8), white);
+      pad.scale.set(1, 1, 0.75);
+      pad.position.set(sx > 0 ? 0.02 : -0.02, -0.3, 0.09);
+      hip.add(pad);
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.05, 0.03), jersey);
+      band.position.set(0, -0.12, 0.2);
+      hip.add(band);
+    }
     g.add(hip);
     legs.push(hip);
   }
-  const pants = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.25, 0.32, 14), dark);
-  pants.position.y = 0.82;
+
+  // --- Culotte (large, rembourrée) avec une bande
+  const pants = cyl(0.26, 0.3, 0.36, trim, 16);
+  pants.position.y = 0.8;
   g.add(pants);
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.27, 0.55, 14), jersey);
+  const belt = cyl(0.262, 0.262, 0.04, jersey, 16);
+  belt.position.y = 0.95;
+  g.add(belt);
+
+  // --- Maillot : tronc, épaulières, bande du bas
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.26, 4, 12), jersey);
+  torso.scale.set(1.12, 1, goalie ? 1.05 : 0.82);
   torso.position.y = 1.2;
   g.add(torso);
-  for (const s of [-1, 1]) {
-    const arm = rod(new THREE.Vector3(0.33 * s, 1.4, 0), new THREE.Vector3(0.3 * s, 1.0, 0.25), 0.08, jersey);
-    g.add(arm);
+  for (const sx of [-1, 1]) {
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), jersey);
+    sh.scale.set(1.1, 0.8, 1);
+    sh.position.set(0.3 * sx, 1.42, 0);
+    g.add(sh);
   }
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), std(COLORS.skin));
-  head.position.y = 1.6;
+  const hem = cyl(0.3, 0.3, 0.06, white, 16);
+  hem.scale.z = 0.82;
+  hem.position.y = 1.0;
+  g.add(hem);
+  const hem2 = cyl(0.302, 0.302, 0.03, trim, 16);
+  hem2.scale.z = 0.82;
+  hem2.position.y = 1.045;
+  g.add(hem2);
+
+  // --- Bras (épaule → coude → main sur la crosse) et gants
+  const arms = new THREE.Group();
+  const top = STICK_HANDS.clone(); // main du haut (droitier : main gauche, côté +x)
+  const lowHand = top.clone().lerp(new THREE.Vector3(STICK_HEEL.x, 0.1, STICK_HEEL.z), 0.4); // main du bas, sur le manche
+  for (const [sx, hnd] of [
+    [1, top],
+    [-1, lowHand],
+  ]) {
+    const sh = new THREE.Vector3(0.32 * sx, 1.38, 0);
+    const el = new THREE.Vector3(0.36 * sx, 1.12, 0.1);
+    arms.add(rod(sh, el, 0.075, jersey));
+    const fore = rod(el, hnd, 0.065, jersey);
+    arms.add(fore);
+    const cuffBand = rod(el.clone().lerp(hnd, 0.55), el.clone().lerp(hnd, 0.7), 0.068, white);
+    arms.add(cuffBand);
+    const glove = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.08, 3, 6), goalie ? white : dark);
+    glove.position.copy(hnd);
+    arms.add(glove);
+  }
+  if (goalie) {
+    // bouclier (main de la crosse) et mitaine (main libre)
+    const blocker = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.32, 0.22), white);
+    blocker.position.set(-0.05, 0.7, 0.42);
+    arms.add(blocker);
+    const catcher = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), white);
+    catcher.scale.set(0.6, 1, 1);
+    catcher.position.set(0.42, 1.0, 0.3);
+    arms.add(catcher);
+  }
+  if (hand === 'L') arms.scale.x = -1;
+  g.add(arms);
+
+  // --- Cou, tête, casque (ou masque de gardien)
+  const neck = cyl(0.07, 0.08, 0.08, trim, 10);
+  neck.position.y = 1.53;
+  g.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), skin);
+  head.position.y = 1.64;
   g.add(head);
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), team ? std(0x0b2545) : dark);
-  helmet.position.y = 1.62;
-  g.add(helmet);
-  // Visage tourné vers l'avant (+z) : yeux et grille du casque, pour savoir tout de suite
-  // si on voit le joueur de face ou de dos.
-  for (const sx of [-0.05, 0.05]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), std(0xffffff));
-    eye.position.set(sx, 1.62, 0.13);
+  if (goalie) {
+    const mask = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), white);
+    mask.scale.set(0.95, 1.12, 1.05);
+    mask.position.y = 1.65;
+    g.add(mask);
+    const grid = new THREE.Mesh(new THREE.SphereGeometry(0.152, 10, 8, -0.9, 1.8, 0.9, 1.1), new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true }));
+    grid.position.y = 1.65;
+    grid.scale.set(0.95, 1.12, 1.05);
+    g.add(grid);
+  } else {
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), team ? mat('helmT', 0x0b2545) : mat('helmO', 0x1f2430));
+    helmet.scale.set(1, 1, 1.12);
+    helmet.position.y = 1.66;
+    g.add(helmet);
+    // grille du casque (devant le visage)
+    const grid = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 6, -0.75, 1.5, 1.2, 0.9), new THREE.MeshBasicMaterial({ color: 0xbfc7cf, wireframe: true }));
+    grid.position.y = 1.66;
+    g.add(grid);
+    const chin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.04), dark);
+    chin.position.set(0, 1.53, 0.1);
+    g.add(chin);
+  }
+  // Yeux (pour savoir tout de suite si on voit le joueur de face ou de dos)
+  for (const sx of [-0.045, 0.045]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), white);
+    eye.position.set(sx, 1.65, 0.105);
     g.add(eye);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 5), std(0x111111));
-    pupil.position.set(sx, 1.62, 0.15);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 5), dark);
+    pupil.position.set(sx, 1.65, 0.122);
     g.add(pupil);
   }
-  const cage = new THREE.Mesh(
-    new THREE.BoxGeometry(0.2, 0.16, 0.01),
-    new THREE.MeshStandardMaterial({ color: 0xcccccc, wireframe: true }),
-  );
-  cage.position.set(0, 1.55, 0.17);
-  g.add(cage);
-  // Dos du maillot : une bande blanche, pour reconnaître le dos du joueur.
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.02), std(0xffffff));
-  back.position.set(0, 1.3, -0.29);
-  g.add(back);
+  // Numéro dans le dos
+  if (num != null && num !== 'TOI') {
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), backNumber(num));
+    back.position.set(0, 1.24, -0.245);
+    back.rotation.y = Math.PI;
+    g.add(back);
+  } else {
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.02), white);
+    back.position.set(0, 1.3, -0.235);
+    g.add(back);
+  }
+  mergeByMaterial(arms);
+  for (const leg of legs) mergeByMaterial(leg);
+  mergeByMaterial(g);
   g.add(makeStick({ hand, goalie }));
 
-  if (goalie) {
-    g.scale.set(1.25, 1.05, 1.25);
-    const pads = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.2), white);
-    pads.position.set(0, 0.35, 0.15);
-    g.add(pads);
-  }
+  if (goalie) g.scale.set(1.15, 1.02, 1.15);
 
   // Tout le corps dans un groupe qui peut se pencher en avant quand on patine.
   const body = new THREE.Group();
@@ -657,6 +899,8 @@ export function createWorld(canvas) {
     puck,
     resize,
     getHfov: () => hfov,
+    /** Statistiques de rendu (objets dessinés, triangles) : pour vérifier la fluidité. */
+    renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }),
     /** Active ou non la vue à la 3e personne. */
     setThirdPerson(on) {
       third = !!on;

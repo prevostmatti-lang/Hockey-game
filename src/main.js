@@ -8,7 +8,7 @@ import { explain, describeOption } from './evaluate.js';
 import { createSim, angleTo, wrap, goalieShape } from './sim.js';
 import { createWorld } from './world.js';
 import { drawReplay } from './diagram.js';
-import { sfx, speak, unlockAudio, toggleMute, isMuted } from './audio.js';
+import { sfx, speak, unlockAudio, toggleMute, isMuted, setAmbience } from './audio.js';
 import { BLOCKS, calendar, weekOf, blockOf, isHoliday, sessionPlan, scaledLevel, PROGRAM_WEEKS } from './program.js';
 import { createDrill, closeDrillUI } from './drills.js';
 import { makeVariant } from './generator.js';
@@ -59,70 +59,184 @@ function save(key, value) {
 }
 
 // ---------- écrans ----------
-const SCREENS = ['#hand', '#menu', '#intro', '#result', '#summary', '#program', '#session-end'];
+const SCREENS = ['#hand', '#home', '#hub', '#settings', '#intro', '#result', '#summary', '#program', '#session-end'];
 function showScreen(id) {
   for (const s of SCREENS) $(s).hidden = s !== id;
   $('#hud').hidden = id !== null;
 }
 
-function setHand(hand) {
+function setHand(hand, stay = false) {
   G.hand = hand;
   save(HAND_KEY, hand);
   world.setHand(hand);
-  goMenu();
+  if (!stay) goHome();
 }
 
-function renderMenu() {
-  const best = load(STORE_KEY, { best: {} }).best || {};
-  const list = $('#levels');
-  list.innerHTML = '';
-  for (const mode of ['attack', 'defense']) {
-    const h = document.createElement('p');
-    h.className = 'mode-title';
-    h.textContent = mode === 'attack' ? '⚔️ Attaque : marque un but' : '🛡️ Défense : protège ton but';
-    list.appendChild(h);
-    const row = document.createElement('div');
-    row.className = 'levels';
-    for (const l of LEVELS) {
-      const n = scenariosFor(mode, l.id).length;
-      const b = document.createElement('button');
-      b.className = 'level';
-      b.style.setProperty('--c', l.color);
-      b.innerHTML = `<span class="lv-name">${l.name}</span><span class="lv-ages">${l.ages}</span><span class="lv-stars">⭐ ${best[bestKey(mode, l.id)] || 0} / ${n * 3}</span>`;
-      b.addEventListener('click', () => startLevel(l.id, mode));
-      row.appendChild(b);
-    }
-    list.appendChild(row);
+// ---------- accueil et menus ----------
+const REC_KEY = 'tetehaute.records';
+const MENU_PHASES = ['menu', 'hand', 'program', 'hub', 'settings'];
+const getCat = () => loadProgram().cat || 'U9';
+function setCat(cat) {
+  const prog = loadProgram();
+  prog.cat = cat;
+  save(PROG_KEY, prog);
+}
+function record(key, value) {
+  const r = load(REC_KEY, {});
+  const best = r[key] || 0;
+  if (value > best) {
+    r[key] = value;
+    save(REC_KEY, r);
   }
-  for (const b of document.querySelectorAll('.view-btn')) b.classList.toggle('on', (b.dataset.view === '3') === !!G.view3);
-  $('#btn-tuto').textContent = load(TUTO_KEY, false) ? '🎓 Revoir le tutoriel ✅' : '🎓 Tutoriel : apprends les gestes (2 min)';
-  $('#btn-tuto').classList.toggle('new', !load(TUTO_KEY, false));
-  $('#hand-label').textContent = G.hand === 'L' ? 'à gauche (gaucher)' : 'à droite (droitier)';
-  $('#portrait-tip').hidden = true; // le jeu marche en paysage comme en portrait
+  return { best: Math.max(best, value), isNew: value > best && value > 0 };
+}
+const recordOf = (key) => load(REC_KEY, {})[key] || 0;
+
+/** Les jeux en accès libre (sans passer par le programme). */
+const GAMES = [
+  { id: 'attack', group: 'ice', icon: '⚔️', name: 'Attaque', desc: 'Repère, décide, marque : 3 situations à étoiles.', color: '#1e66f5' },
+  { id: 'defense', group: 'ice', icon: '🛡️', name: 'Défense', desc: 'Protège ton but et récupère le palet.', color: '#0b2545' },
+  { id: 'serie', group: 'ice', icon: '🎲', name: 'Situations surprises', desc: 'Attaque et défense au hasard. 3 vies : jusqu’où iras-tu ?', color: '#7c3aed' },
+  { id: 'tirs', group: 'ice', icon: '🥅', name: 'Tirs au but', desc: '5 tirs face au gardien : lis ses espaces libres.', color: '#e5484d' },
+  { id: 'lecture', group: 'brain', icon: '🧠', name: 'Lis le jeu', desc: 'L’action se fige : où te placer selon ton rôle ?', color: '#1fa35c' },
+  { id: 'arret', group: 'brain', icon: '⏸️', name: 'Arrêt sur image', desc: 'Décide vite… et sache garder le palet.', color: '#f07a00' },
+  { id: 'memoire', group: 'brain', icon: '📸', name: 'Mémoire de glace', desc: 'Regarde la scène, puis réponds de mémoire.', color: '#0891b2' },
+];
+
+function gameRecordText(g, cat) {
+  if (g.id === 'attack' || g.id === 'defense') {
+    const n = scenariosFor(g.id, cat).length;
+    return `⭐ ${load(STORE_KEY, { best: {} }).best?.[bestKey(g.id, cat)] || 0} / ${n * 3}`;
+  }
+  const r = recordOf(`${g.id}-${cat}`);
+  if (g.id === 'serie') return r ? `🏆 record : ${r}` : '🏆 pas encore de record';
+  if (g.id === 'tirs') return r ? `🏆 record : ${r} / 5` : '🏆 pas encore de record';
+  return r ? `🏆 record : ${r} bonnes réponses` : '🏆 pas encore de record';
 }
 
-function goMenu() {
+function renderHome() {
+  const best = load(STORE_KEY, { best: {} }).best || {};
+  const stars = Object.values(best).reduce((a, b) => a + (b || 0), 0);
+  $('#home-profile').textContent = `${getCat()} · ${G.hand === 'L' ? 'gaucher' : 'droitier'}`;
+  $('#home-stars').textContent = `⭐ ${stars}`;
+  const tutoDone = load(TUTO_KEY, false);
+  $('#tuto-sub').textContent = tutoDone ? 'revoir les gestes ✅' : 'les gestes en 2 min';
+  $('#btn-tuto').classList.toggle('new', !tutoDone);
+}
+
+function renderHub() {
+  const cat = getCat();
+  const cats = $('#hub-cats');
+  cats.innerHTML = '';
+  for (const l of LEVELS) {
+    const b = document.createElement('button');
+    b.className = 'cat-btn' + (l.id === cat ? ' on' : '');
+    b.style.setProperty('--c', l.color);
+    b.innerHTML = `<b>${l.name}</b><small>${l.ages}</small>`;
+    b.addEventListener('click', () => {
+      setCat(l.id);
+      renderHub();
+    });
+    cats.appendChild(b);
+  }
+  for (const grp of ['ice', 'brain']) {
+    const box = $(`#games-${grp}`);
+    box.innerHTML = '';
+    for (const g of GAMES.filter((x) => x.group === grp)) {
+      const b = document.createElement('button');
+      b.className = 'game';
+      b.style.setProperty('--c', g.color);
+      b.innerHTML = `<span class="g-ico">${g.icon}</span><span class="g-txt"><span class="g-name">${g.name}</span><span class="g-desc">${g.desc}</span><span class="g-rec">${gameRecordText(g, cat)}</span></span><span class="g-go">▶</span>`;
+      b.addEventListener('click', () => startGame(g.id));
+      box.appendChild(b);
+    }
+  }
+}
+
+function renderSettings() {
+  for (const b of document.querySelectorAll('.view-btn')) b.classList.toggle('on', (b.dataset.view === '3') === !!G.view3);
+  for (const b of document.querySelectorAll('.hand-set')) b.classList.toggle('on', b.dataset.hand === G.hand);
+  for (const b of document.querySelectorAll('.snd-set')) b.classList.toggle('on', (b.dataset.snd === '0') === isMuted());
+}
+
+/** Remet le monde en mode « menu » : patinoire vide, joueurs à l'échauffement. */
+function resetToMenu(phase) {
   $('#speedfx').style.opacity = '0';
+  setAmbience(false);
   stopDrill();
+  stopAiming();
   world.showMe(false);
   G.tuto = null;
   $('#tuto').hidden = true;
   $('#hud-step').hidden = false;
   $('#timer').hidden = false;
   G.session = null;
-  G.phase = 'menu';
+  G.game = null;
+  G.phase = phase;
   G.sim = null;
-  world.clearActors();
   world.setStickVisible(false);
   world.setHolding(false);
-  world.puck.position.set(0, 0.02, 0);
+  world.puck.position.set(0, 0.02, -60);
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  startWarmup();
+}
+
+function goHome() {
+  resetToMenu('menu');
   if (!G.hand) {
+    G.phase = 'hand';
     showScreen('#hand');
     return;
   }
-  renderMenu();
-  showScreen('#menu');
+  renderHome();
+  showScreen('#home');
+}
+function goHub() {
+  resetToMenu('hub');
+  renderHub();
+  showScreen('#hub');
+}
+function goSettings() {
+  resetToMenu('settings');
+  renderSettings();
+  showScreen('#settings');
+}
+/** Retour après un jeu : vers le choix des jeux si on venait de là, sinon l'accueil. */
+function goMenu() {
+  if (G.from === 'hub') goHub();
+  else goHome();
+}
+
+// Échauffement : quelques joueurs patinent en rond derrière les menus.
+const warm = { actors: [], t: 0 };
+function startWarmup() {
+  world.clearActors();
+  warm.actors = [];
+  const n = 8;
+  for (let i = 0; i < n; i++) {
+    const team = i % 2 === 0;
+    const a = world.addActor({ team, num: [9, 17, 4, 22, 11, 88, 27, 5][i], hand: i % 3 ? 'R' : 'L' });
+    warm.actors.push({ a, team, r: 4 + (i % 4) * 1.4, ph: (i / n) * Math.PI * 2, w: 0.32 + (i % 3) * 0.05 });
+  }
+  const g1 = world.addActor({ team: false, goalie: true });
+  g1.setPos(0, 25.2);
+  g1.face(0, 0);
+  const g2 = world.addActor({ team: true, goalie: true });
+  g2.setPos(0, -25.2);
+  g2.face(0, 0);
+}
+function updateWarmup(dt) {
+  warm.t += dt;
+  for (const w of warm.actors) {
+    // Chaque équipe tourne dans sa moitié de glace, comme à l'échauffement d'avant-match.
+    const ang = w.ph + warm.t * w.w * (w.team ? 1 : -1);
+    const cz = w.team ? -11 : 11;
+    const x = Math.cos(ang) * w.r * 1.6;
+    const z = cz + Math.sin(ang) * w.r;
+    w.a.setPos(x, z);
+    const d = w.team ? 1 : -1;
+    w.a.face(x - Math.sin(ang) * d, z + Math.cos(ang) * d);
+  }
 }
 
 // ---------- déroulement ----------
@@ -131,12 +245,140 @@ const bestKey = (mode, levelId) => (mode === 'defense' ? `D-${levelId}` : levelI
 
 function startLevel(levelId, mode = G.mode) {
   unlockAudio();
+  G.game = null;
   G.mode = mode;
   G.level = LEVELS.find((l) => l.id === levelId);
   G.queue = scenariosFor(mode, levelId);
   G.index = 0;
   G.results = [];
   showIntro();
+}
+
+// ---------- jeux en accès libre ----------
+/** Lance un jeu du menu « Choisis ton jeu ». */
+function startGame(id) {
+  unlockAudio();
+  G.from = 'hub';
+  const cat = getCat();
+  if (id === 'attack' || id === 'defense') return startLevel(cat, id);
+  if (id === 'serie') return startSerie(cat);
+  if (id === 'tirs') return startTirs(cat);
+  return startFreeDrill(id, cat);
+}
+
+/** Situations surprises : attaque et défense au hasard, toujours renouvelées ; 3 vies. */
+function startSerie(cat) {
+  G.level = LEVELS.find((l) => l.id === cat);
+  G.queue = liveQueue('mixed', 6);
+  G.index = 0;
+  G.results = [];
+  G.game = { id: 'serie', cat, lives: 3, score: 0 };
+  showIntro();
+}
+
+const pickR = (arr) => arr[Math.floor(Math.random() * arr.length)];
+/** Un tir au but : tu reçois une passe dans la zone et tu vas tirer ; en U11/U13 un défenseur te poursuit. */
+function shotScenario(i, cat) {
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const me = { x: side * (1 + Math.random() * 6), z: 11 + Math.random() * 4 };
+  const opponents = [{ goalie: true, x: 0, z: 25.2 }];
+  if (cat !== 'U9') opponents.push({ x: me.x + (Math.random() - 0.5) * 3, z: me.z - (cat === 'U13' ? 6 : 8), presser: true });
+  return {
+    id: `tir-${i}`,
+    mode: 'attack',
+    level: cat,
+    title: `Tir n°${i + 1} / 5`,
+    me,
+    // Le passeur est déjà dans la zone : pas de hors-jeu.
+    passer: { num: pickR([4, 7, 8, 14]), x: -side * (3 + Math.random() * 4), z: 8.2 + Math.random() * 1.5 },
+    teammates: [],
+    opponents,
+    lesson: 'Regarde le gardien avant de tirer : vise l’espace qu’il laisse libre.',
+  };
+}
+function startTirs(cat) {
+  G.level = LEVELS.find((l) => l.id === cat);
+  G.queue = [0, 1, 2, 3, 4].map((i) => shotScenario(i, cat));
+  G.index = 0;
+  G.results = [];
+  G.game = { id: 'tirs', cat, goals: 0, shots: [] };
+  showIntro();
+}
+/** Fin d'un tir : on annonce le résultat et on enchaîne tout de suite sur le suivant. */
+function endShot() {
+  G.shown = true;
+  const st = G.sim.state;
+  const goal = st.over.type === 'goal';
+  G.game.shots.push(goal);
+  if (goal) G.game.goals += 1;
+  // Le son et le message du résultat (« BUT ! », arrêt…) sont déjà donnés au coup de sifflet (onOver).
+  $('#hud-step').textContent = shotDots();
+  const game = G.game;
+  setTimeout(() => {
+    if (G.game !== game) return; // on a quitté ou relancé entre-temps
+    G.index += 1;
+    if (G.index < G.queue.length) {
+      loadScenario(G.queue[G.index]);
+      beginPlay();
+    } else showGameSummary();
+  }, 1600);
+}
+const shotDots = () => [0, 1, 2, 3, 4].map((i) => (i < G.game.shots.length ? (G.game.shots[i] ? '🟢' : '🔴') : '⚪')).join('');
+
+/** Exercices « cerveau » en accès libre : 2 minutes, réglés selon la catégorie. */
+const DRILL_INFO = {
+  lecture: { label: 'Lis le jeu', roles: ['soutien', 'duel', 'marquage'] },
+  arret: { label: 'Arrêt sur image' },
+  memoire: { label: 'Mémoire de glace' },
+};
+function startFreeDrill(kind, cat) {
+  const d = { U9: 0, U11: 1, U13: 2 }[cat] ?? 0;
+  const seg = {
+    drill: kind,
+    label: DRILL_INFO[kind].label,
+    seconds: new URLSearchParams(location.search).has('rapide') ? 20 : 120,
+    roles: DRILL_INFO[kind].roles,
+    decisionTime: Math.max(2.5, 6 - d * 1.2),
+    stopRatio: 0.2 + d * 0.05,
+    showTime: Math.max(1.4, 3 - d * 0.6),
+  };
+  G.game = { id: kind, cat };
+  launchDrill(seg, LEVELS.find((l) => l.id === cat), `${cat} · 2 min`);
+}
+
+/** Écran de fin des jeux libres (série, tirs, exercices) avec le record. */
+function showGameSummary(stats) {
+  const g = G.game;
+  G.phase = 'summary';
+  const key = `${g.id}-${g.cat}`;
+  let title;
+  let text;
+  let big;
+  if (g.id === 'serie') {
+    const r = record(key, g.score);
+    big = `🏒 ${g.score} situation${g.score > 1 ? 's' : ''} réussie${g.score > 1 ? 's' : ''}`;
+    title = r.isNew ? 'Nouveau record ! 🏆' : g.score >= 5 ? 'Belle série ! 💪' : 'Fin de la série';
+    text = `Record : ${r.best}. Une situation est réussie avec au moins 2 étoiles. Lis le jeu avant d’avoir le palet !`;
+  } else if (g.id === 'tirs') {
+    const r = record(key, g.goals);
+    big = `${shotDots()}  ${g.goals} / 5`;
+    title = r.isNew ? 'Nouveau record ! 🏆' : g.goals >= 4 ? 'Sniper ! 🎯' : g.goals >= 2 ? 'Pas mal ! 💪' : 'Continue ! 🙂';
+    text = `Record : ${r.best} / 5. Avant de tirer, regarde où le gardien laisse de l’espace : le côté éloigné quand tu arrives de côté, le haut quand il est au sol.`;
+  } else {
+    const r = record(key, stats.hits);
+    big = `✅ ${stats.hits} / ${stats.reps}`;
+    title = r.isNew ? 'Nouveau record ! 🏆' : stats.reps && stats.hits / stats.reps >= 0.8 ? 'Excellent ! 🧠' : 'Bien joué ! 💪';
+    text = `Record : ${r.best} bonnes réponses en 2 minutes. Décide vite, mais regarde bien d’abord.`;
+  }
+  $('#sum-stars').textContent = big;
+  $('#sum-title').textContent = title;
+  $('#sum-text').textContent = text;
+  G.again = () => startGame(g.id);
+  G.sim = null;
+  startWarmup();
+  showScreen('#summary');
+  if (title.includes('record')) sfx.good();
+  speak(title);
 }
 
 function loadScenario(scn) {
@@ -155,14 +397,23 @@ function loadScenario(scn) {
 
 function showIntro() {
   const scn = G.queue[G.index];
-  if (G.session) G.mode = scn.mode === 'defense' ? 'defense' : 'attack';
+  if (G.session || G.game) G.mode = scn.mode === 'defense' ? 'defense' : 'attack';
   loadScenario(scn);
   G.phase = 'intro';
+  const modeTxt = G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque';
   $('#intro-step').textContent = G.session
-    ? `${G.session.plan.title} · ${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · Situation ${G.index + 1}`
-    : `${G.mode === 'defense' ? '🛡️ Défense' : '⚔️ Attaque'} · ${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
+    ? `${G.session.plan.title} · ${modeTxt} · Situation ${G.index + 1}`
+    : G.game?.id === 'serie'
+      ? `🎲 Situations surprises · ${G.level.name} · ${'❤️'.repeat(G.game.lives)}${'🤍'.repeat(3 - G.game.lives)} · réussies : ${G.game.score}`
+      : G.game?.id === 'tirs'
+        ? `🥅 Tirs au but · ${G.level.name}`
+        : `${modeTxt} · ${G.level.name} · Situation ${G.index + 1} / ${G.queue.length}`;
   $('#intro-title').textContent = scn.title;
-  if (scn.mode === 'defense') {
+  if (G.game?.id === 'tirs') {
+    $('#intro-title').textContent = '5 tirs face au gardien';
+    $('#intro-text').innerHTML = `Le n°${scn.passer.num} te passe le palet dans la zone.<br /><b>Fonce au but et regarde le gardien</b> : à chaque tir, il laisse des espaces différents. Vise une cible <b>verte</b> !`;
+    $('#intro-goal').textContent = G.level.id === 'U9' ? '🥅 Objectif : marquer le plus de buts possible.' : '🥅 Attention : un défenseur te poursuit. Ne traîne pas !';
+  } else if (scn.mode === 'defense') {
     $('#intro-text').innerHTML = `${scn.mission}<br /><span class="hint">⬇ Tire ton pouce tout droit vers le bas pour patiner à reculons. Double tap pour freiner.</span>`;
     $('#intro-goal').textContent = '🛡️ Objectif : récupérer le palet sans encaisser de but.';
   } else {
@@ -178,12 +429,19 @@ function beginPlay() {
   G.phase = 'play';
   resetInput();
   $('#hud-level').textContent = `${G.mode === 'defense' ? '🛡️' : '⚔️'} ${G.level.name}`;
-  $('#hud-step').textContent = G.session ? '⏱️' : `${G.index + 1} / ${G.queue.length}`;
+  $('#hud-step').textContent = G.session
+    ? '⏱️'
+    : G.game?.id === 'serie'
+      ? `${'❤️'.repeat(G.game.lives)}${'🤍'.repeat(3 - G.game.lives)} · ${G.game.score}`
+      : G.game?.id === 'tirs'
+        ? shotDots()
+        : `${G.index + 1} / ${G.queue.length}`;
   $('#ctl-hint').hidden = G.index > 0;
   $('#ctl-hint').hidden = true;
   showZones(G.index === 0);
   showScreen(null);
   sfx.whistle();
+  setAmbience(true);
   if (G.mode === 'defense') {
     setBanner('🛡️ Défends ton but !', 'scan');
     speak('Défends ton but ! Repère tous les attaquants.');
@@ -670,6 +928,7 @@ function onOver(over) {
     sfx.good();
   } else {
     setBanner(OUTCOMES[over.type] || 'Fin', 'info');
+    if (over.type === 'save') sfx.ooh();
     sfx.bad();
   }
 }
@@ -774,7 +1033,7 @@ function showDefenseResult() {
   $('#res-radar').className = radar ? 'ok' : 'warn';
   $('#res-lesson').textContent = st.scn.lesson;
   $('#legend-best').textContent = '◯ bonne place';
-  $('#btn-next').textContent = G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';
+  $('#btn-next').textContent = nextLabel();
   showScreen('#result');
   drawReplay($('#res-diagram'), st, null);
   speak(`${titles[stars]} ${outcome}`);
@@ -841,10 +1100,18 @@ function showResult() {
     : '👀 Avant de jouer le palet, tourne-toi pour repérer tous tes coéquipiers.';
   $('#res-radar').className = radar ? 'ok' : 'warn';
   $('#res-lesson').textContent = st.scn.lesson;
-  $('#btn-next').textContent = G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';
+  $('#btn-next').textContent = nextLabel();
   showScreen('#result');
   drawReplay($('#res-diagram'), st, rel);
   speak(`${titles[stars]} ${outcome}`);
+}
+
+function nextLabel() {
+  if (G.game?.id === 'serie') {
+    const lives = G.game.lives - ((G.results[G.index] || 0) >= 2 ? 0 : 1);
+    return lives <= 0 ? 'Fin de la série ▶' : `Suivant ▶ ${'❤️'.repeat(lives)}${'🤍'.repeat(3 - lives)}`;
+  }
+  return G.index + 1 < G.queue.length ? 'Suivant ▶' : 'Résultats ▶';
 }
 
 function next() {
@@ -857,6 +1124,16 @@ function next() {
     }
     G.index += 1;
     if (G.index >= G.queue.length) G.queue.push(...liveQueue(L.mode, 6));
+    showIntro();
+    return;
+  }
+  if (G.game && G.game.id === 'serie') {
+    const g = G.game;
+    if ((G.results[G.index] || 0) >= 2) g.score += 1;
+    else g.lives -= 1;
+    if (g.lives <= 0) return showGameSummary();
+    G.index += 1;
+    if (G.index >= G.queue.length) G.queue.push(...liveQueue('mixed', 6));
     showIntro();
     return;
   }
@@ -974,9 +1251,11 @@ function update(dt) {
     const left = Math.max(0, (G.session.live.endAt - performance.now()) / 1000);
     $('#hud-step').textContent = `⏱️ ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
   }
-  if (G.phase === 'menu' || G.phase === 'hand' || G.phase === 'program' || !G.sim) {
-    G.menuYaw += dt * 0.12;
-    world.setView(0, -12, G.menuYaw, 3.5);
+  if (MENU_PHASES.includes(G.phase) || !G.sim) {
+    // Caméra qui tourne lentement au-dessus de l'échauffement.
+    G.menuYaw += dt * 0.08;
+    world.setView(Math.sin(G.menuYaw) * 3, -24 + Math.cos(G.menuYaw * 0.7) * 1.5, Math.sin(G.menuYaw) * 0.3, 2.6);
+    if (warm.actors.length) updateWarmup(dt);
     return;
   }
   if (G.phase === 'play') {
@@ -994,7 +1273,10 @@ function update(dt) {
     drawShotPanel();
     updatePuckIndicator();
     if (G.tuto) updateTuto(dt);
-    else if (st.over && st.overT >= END_DELAY && !G.shown) showResult();
+    else if (st.over && st.overT >= END_DELAY && !G.shown) {
+      if (G.game && G.game.id === 'tirs') endShot();
+      else showResult();
+    }
   }
   syncRender();
 }
@@ -1078,12 +1360,7 @@ function renderProgram() {
 }
 
 function showProgram() {
-  stopDrill();
-  G.session = null;
-  G.phase = 'program';
-  G.sim = null;
-  world.clearActors();
-  world.setStickVisible(false);
+  resetToMenu('program');
   renderProgram();
   showScreen('#program');
 }
@@ -1138,15 +1415,20 @@ function nextSegment() {
     return;
   }
   // Exercice court
+  launchDrill(seg, S.base, label);
+}
+
+/** Lance un exercice court (programme ou accès libre). */
+function launchDrill(seg, base, label) {
   showScreen(null);
   $('#hud').hidden = true;
   G.phase = 'drill';
   G.sim = null;
   resetInput();
-  const pool = SCENARIOS.filter((x) => x.level === S.base.id);
+  const pool = SCENARIOS.filter((x) => x.level === base.id);
   world.showMe(false);
   world.setThirdPerson(false);
-  const defPool = DEFENSE_SCENARIOS.filter((x) => x.level === S.base.id);
+  const defPool = DEFENSE_SCENARIOS.filter((x) => x.level === base.id);
   G.drill = createDrill(seg.drill, { world, canvas, seg, rand: Math.random, sfx, speak, pool, defPool, hand: G.hand });
   G.drill.kind = seg.drill;
   $('#drill-seg').textContent = label;
@@ -1163,6 +1445,12 @@ function stopDrill() {
 }
 
 function finishDrill() {
+  if (!G.session) {
+    const stats = G.drill.stats;
+    stopDrill();
+    showGameSummary(stats);
+    return;
+  }
   G.session.stats[G.drill.kind] = G.drill.stats;
   nextSegment();
 }
@@ -1349,25 +1637,46 @@ function setView3(on) {
 for (const b of document.querySelectorAll('.view-btn')) {
   b.addEventListener('click', () => {
     setView3(b.dataset.view === '3');
-    renderMenu();
+    renderSettings();
   });
 }
 setView3(load(VIEW_KEY, '1') === '3');
 $('#tuto-skip').addEventListener('click', () => {
-  if (!G.tuto || G.tuto.done) goMenu();
+  if (!G.tuto || G.tuto.done) goHome();
   else nextTutoStep();
 });
-$('#btn-program').addEventListener('click', showProgram);
-$('#prog-back').addEventListener('click', goMenu);
+$('#btn-program').addEventListener('click', () => {
+  G.from = 'home';
+  showProgram();
+});
+$('#prog-back').addEventListener('click', goHome);
 $('#se-done').addEventListener('click', showProgram);
-$('#drill-quit').addEventListener('click', showProgram);
+$('#drill-quit').addEventListener('click', () => (G.session ? showProgram() : goMenu()));
 for (const b of document.querySelectorAll('.hand-btn')) b.addEventListener('click', () => setHand(b.dataset.hand));
-$('#btn-hand').addEventListener('click', () => showScreen('#hand'));
+$('#home-play').addEventListener('click', () => {
+  unlockAudio();
+  goHub();
+});
+$('#home-settings').addEventListener('click', goSettings);
+for (const b of document.querySelectorAll('.back-btn')) b.addEventListener('click', goHome);
+for (const b of document.querySelectorAll('.hand-set')) {
+  b.addEventListener('click', () => {
+    setHand(b.dataset.hand, true);
+    renderSettings();
+  });
+}
+for (const b of document.querySelectorAll('.snd-set')) {
+  b.addEventListener('click', () => {
+    if ((b.dataset.snd === '0') !== isMuted()) toggleMute();
+    paintSound();
+    renderSettings();
+  });
+}
 
 $('#btn-go').addEventListener('click', beginPlay);
 $('#btn-next').addEventListener('click', next);
 $('#btn-retry').addEventListener('click', showIntro);
-$('#btn-again').addEventListener('click', () => startLevel(G.level.id, G.mode));
+$('#btn-again').addEventListener('click', () => (G.game && G.again ? G.again() : startLevel(G.level.id, G.mode)));
 $('#btn-menu').addEventListener('click', goMenu);
 $('#btn-quit').addEventListener('click', () => (G.session ? showProgram() : goMenu()));
 $('#intro-back').addEventListener('click', () => (G.session ? showProgram() : goMenu()));
@@ -1381,7 +1690,6 @@ paintSound();
 
 window.addEventListener('resize', () => {
   world.resize();
-  if (G.phase === 'menu') renderMenu();
   if (G.phase === 'result') drawReplay($('#res-diagram'), G.sim.state, G.sim.state.defense ? null : G.sim.state.releases.at(-1) || null);
 });
 
@@ -1390,9 +1698,9 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // Accès pour les tests automatisés
-window.__game = { G, input, world, startLevel, beginPlay, setHand, startSession, showProgram, nextSegment };
+window.__game = { G, input, world, startLevel, beginPlay, setHand, startSession, showProgram, nextSegment, startGame, goHome, goHub, goSettings };
 
 G.hand = load(HAND_KEY, null);
 if (G.hand) world.setHand(G.hand);
-goMenu();
+goHome();
 requestAnimationFrame(frame);
