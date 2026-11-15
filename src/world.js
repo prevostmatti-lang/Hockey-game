@@ -838,6 +838,8 @@ export function createWorld(canvas) {
 
   // Vue à la 3e personne (option) : caméra derrière et au-dessus du joueur, qui est visible.
   let third = false;
+  let high = false; // « vue de haut » : caméra en hauteur, en plongée sur la glace
+  let plainLens = false; // objectif : false (jeu), 'drill' (exercices) ou true (centré, voir setPlainLens)
   let baseFov3 = 60;
   const chase = { yaw: null, speed: 0, t: performance.now(), bob: 0 };
   let meMesh = null;
@@ -865,11 +867,13 @@ export function createWorld(canvas) {
     renderer.setPixelRatio(w * h * dpr * dpr > 2.6e6 ? Math.max(1, Math.sqrt(2.6e6 / (w * h))) : dpr);
     renderer.setSize(w, h, false);
     const aspect = w / h;
+    const portrait = aspect < 1;
+    camera.clearViewOffset();
     if (third) {
-      // 3e personne : champ plus classique (95° en paysage, 58° en portrait).
-      const t3 = (aspect < 1 ? 58 : 95) * DEG;
+      // 3e personne : champ classique (95° en paysage, 64° en portrait) ; vue de haut un peu plus large.
+      const t3 = (high ? (portrait ? 78 : 100) : portrait ? 64 : 95) * DEG;
       let v3 = 2 * Math.atan(Math.tan(t3 / 2) / aspect);
-      v3 = Math.min(110 * DEG, Math.max(40 * DEG, v3));
+      v3 = Math.min(118 * DEG, Math.max(40 * DEG, v3));
       baseFov3 = v3 / DEG;
       camera.fov = v3 / DEG;
       camera.aspect = aspect;
@@ -877,9 +881,28 @@ export function createWorld(canvas) {
       hfov = 2 * Math.atan(Math.tan(v3 / 2) * aspect);
       return;
     }
-    // Le jeu se joue en paysage, avec une vue large, type « fish-eye » (130° en largeur) pour voir le jeu autour de soi.
-    // En portrait aussi, vue « fish-eye » : 110° en largeur (l'écran étant étroit, la vue est très haute).
-    const portrait = aspect < 1;
+    if (portrait && plainLens !== true) {
+      // 1re personne en PORTRAIT : l'écran est haut et étroit. Tout ce qui compte (joueurs, buts) est
+      // autour de l'horizon. Plutôt qu'une vue « fish-eye » très haute où tout est minuscule :
+      //   - un champ de 85° en largeur (joueurs ~1,5 fois plus grands qu'avant) ;
+      //   - un objectif « décentré » : le regard reste horizontal (pas de déformation), mais
+      //     l'horizon est remonté au quart supérieur de l'écran ; le bas montre ta crosse et le palet.
+      // (Exercices courts : la consigne occupe le haut de l'écran → horizon plus bas, champ plus large.)
+      const drill = plainLens === 'drill';
+      const hf = (drill ? 95 : 85) * DEG;
+      const th = (2 * Math.tan(hf / 2)) / aspect; // hauteur visible (en tangentes)
+      const top = th * (drill ? 0.4 : 0.27);
+      const half = th - top; // cadre virtuel symétrique autour de l'axe
+      const fullH = (h * 2 * half) / th;
+      camera.fov = (2 * Math.atan(half)) / DEG;
+      camera.aspect = w / fullH;
+      camera.setViewOffset(w, fullH, 0, ((half - top) / (2 * half)) * fullH, w, h);
+      camera.updateProjectionMatrix();
+      hfov = hf;
+      lookDrop = Math.tan(3 * DEG) * 10;
+      return;
+    }
+    // Paysage : vue large, type « fish-eye » (130° en largeur) pour voir le jeu autour de soi.
     const target = (portrait ? 110 : 130) * DEG;
     let v = 2 * Math.atan(Math.tan(target / 2) / aspect);
     v = Math.min((portrait ? 150 : 115) * DEG, Math.max(40 * DEG, v));
@@ -892,6 +915,7 @@ export function createWorld(canvas) {
     const pitch = Math.min(35 * DEG, Math.max(18 * DEG, 63 * DEG - v / 2));
     lookDrop = Math.tan(pitch) * 10;
   }
+
   resize();
 
   return {
@@ -902,8 +926,17 @@ export function createWorld(canvas) {
     /** Statistiques de rendu (objets dessinés, triangles) : pour vérifier la fluidité. */
     renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }),
     /** Active ou non la vue à la 3e personne. */
-    setThirdPerson(on) {
+    setThirdPerson(on, isHigh = false) {
       third = !!on;
+      high = !!on && !!isHigh;
+      resize();
+    },
+    /**
+     * Objectif : false = jeu ; 'drill' = exercices courts en vue joueur (horizon sous la consigne) ;
+     * true = objectif centré, sans décentrement (exercices qui cadrent eux-mêmes la caméra).
+     */
+    setPlainLens(mode) {
+      plainLens = mode === true || mode === 'drill' ? mode : false;
       resize();
     },
     isThirdPerson: () => third,
@@ -934,9 +967,25 @@ export function createWorld(canvas) {
       const bob = Math.sin(chase.bob) * 0.05 * k;
       const yaw = chase.yaw;
       const portrait = camera.aspect < 1;
-      const back = (portrait ? 4.4 : 4.6) + 1.1 * k;
-      const height = (portrait ? 3.6 : 3.9) - 0.5 * k + bob;
-      const ahead = portrait ? 16 : 6.5;
+      // Vue de haut : en plongée, on voit les joueurs tout autour (même un peu derrière soi).
+      // 3e personne en portrait : plus haut et plus incliné qu'en paysage, pour remplir l'écran
+      // de glace plutôt que de plafond.
+      let back;
+      let height;
+      let ahead;
+      if (high) {
+        back = (portrait ? 4.2 : 5.6) + 0.8 * k;
+        height = (portrait ? 8.4 : 8) + 0.6 * k + bob;
+        ahead = portrait ? 3.5 : 8;
+      } else if (portrait) {
+        back = 5 + 1.1 * k;
+        height = 5.6 - 0.4 * k + bob;
+        ahead = 5.5;
+      } else {
+        back = 4.6 + 1.1 * k;
+        height = 3.9 - 0.5 * k + bob;
+        ahead = 6.5;
+      }
       camera.up.set(0, 1, 0);
       camera.position.set(x - Math.sin(yaw) * back, height, z - Math.cos(yaw) * back);
       camera.lookAt(x + Math.sin(yaw) * ahead, 0, z + Math.cos(yaw) * ahead);

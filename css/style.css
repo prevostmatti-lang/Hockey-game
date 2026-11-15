@@ -1545,3 +1545,13 @@ p {
     height: 96px;
   }
 }
+.seg.views button {
+  padding: 6px 9px;
+  font-size: 14px;
+}
+.set-tip {
+  margin: 4px 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}

@@ -45,7 +45,9 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 ### Vue 1re ou 3e personne
 Pour **regarder derrière soi**, garder le doigt posé sans bouger dans la zone de vision (côté gauche de la zone = par-dessus l'épaule gauche) ; lever le doigt ramène le regard devant.
 
-Dans les **Réglages**, **Vue : 1re personne / 3e personne**. En 3e personne, la caméra est derrière et au-dessus du joueur (repéré par un anneau jaune), qui est visible avec sa crosse et le palet ; la zone de vision fait tourner la caméra autour de lui. Les contrôles sont les mêmes. Les exercices courts du programme restent en 1re personne.
+Dans les **Réglages**, **Vue : 👁️ 1re personne / 🎥 3e personne / 🛰️ De haut** (par défaut : de haut).
+- **🛰️ De haut** : caméra en hauteur derrière le joueur, en plongée. La profondeur de la glace occupe la hauteur de l'écran : on voit les joueurs tout autour de soi, même un peu derrière. C'est la vue conseillée en portrait.
+- **En portrait**, la 1re personne utilise un objectif « décentré » : le regard reste horizontal (pas de déformation), mais l'horizon est remonté dans le quart supérieur de l'écran et le champ est de 85° au lieu d'une vue « fish-eye » de 110°. Les joueurs paraissent environ 1,5 fois plus grands. La 3e personne en portrait est plus haute et plus inclinée (moins de plafond, plus de glace). En 3e personne, la caméra est derrière et au-dessus du joueur (repéré par un anneau jaune), qui est visible avec sa crosse et le palet ; la zone de vision fait tourner la caméra autour de lui. Les contrôles sont les mêmes. Les exercices courts du programme restent en 1re personne.
 
 ### Tutoriel
 À l'accueil, **🎓 Tutoriel** : un parcours guidé de 2 minutes. Chaque étape est validée automatiquement quand le geste est réussi : avancer, tourner, reculer, freiner (double tap), regarder autour, faire une passe, tirer dans une cible verte. Le bouton est mis en avant tant que le tutoriel n'a pas été fait.

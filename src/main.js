@@ -154,7 +154,7 @@ function renderHub() {
 }
 
 function renderSettings() {
-  for (const b of document.querySelectorAll('.view-btn')) b.classList.toggle('on', (b.dataset.view === '3') === !!G.view3);
+  for (const b of document.querySelectorAll('.view-btn')) b.classList.toggle('on', b.dataset.view === G.viewMode);
   for (const b of document.querySelectorAll('.hand-set')) b.classList.toggle('on', b.dataset.hand === G.hand);
   for (const b of document.querySelectorAll('.snd-set')) b.classList.toggle('on', (b.dataset.snd === '0') === isMuted());
 }
@@ -1484,6 +1484,8 @@ function launchDrill(seg, base, label) {
   const pool = SCENARIOS.filter((x) => x.level === base.id);
   world.showMe(false);
   world.setThirdPerson(false);
+  // « Lis le jeu » cadre lui-même sa caméra (vue d'en haut) ; les autres exercices sont en vue joueur.
+  world.setPlainLens(seg.drill === 'lecture' || seg.drill === 'coupdoeil' ? true : 'drill');
   const defPool = DEFENSE_SCENARIOS.filter((x) => x.level === base.id);
   G.drill = createDrill(seg.drill, { world, canvas, seg, rand: Math.random, sfx, speak, pool, defPool, hand: G.hand });
   G.drill.kind = seg.drill;
@@ -1492,7 +1494,8 @@ function launchDrill(seg, base, label) {
 }
 
 function stopDrill() {
-  world.setThirdPerson(!!G.view3);
+  world.setPlainLens(false);
+  applyView();
   if (G.drill) {
     G.drill.destroy();
     G.drill = null;
@@ -1685,18 +1688,23 @@ function updateTuto(dt) {
 
 // ---------- boutons ----------
 $('#btn-tuto').addEventListener('click', startTuto);
-function setView3(on) {
-  G.view3 = !!on;
-  save(VIEW_KEY, G.view3 ? '3' : '1');
-  world.setThirdPerson(G.view3);
+// Vues : '1' = 1re personne, '3' = 3e personne, 'H' = vue de haut (conseillée en portrait).
+function applyView() {
+  world.setThirdPerson(G.viewMode !== '1', G.viewMode === 'H');
+}
+function setViewMode(mode) {
+  G.viewMode = ['1', '3', 'H'].includes(mode) ? mode : 'H';
+  G.view3 = G.viewMode !== '1';
+  save(VIEW_KEY, G.viewMode);
+  applyView();
 }
 for (const b of document.querySelectorAll('.view-btn')) {
   b.addEventListener('click', () => {
-    setView3(b.dataset.view === '3');
+    setViewMode(b.dataset.view);
     renderSettings();
   });
 }
-setView3(load(VIEW_KEY, '1') === '3');
+setViewMode(load(VIEW_KEY, 'H'));
 $('#tuto-skip').addEventListener('click', () => {
   if (!G.tuto || G.tuto.done) goHome();
   else nextTutoStep();
