@@ -43,6 +43,8 @@ L'écran est coupé en deux zones (elles sont montrées au début de la premièr
 | Double tap | freiner |
 
 ### Vue 1re ou 3e personne
+Pour **regarder derrière soi**, garder le doigt posé sans bouger dans la zone de vision (côté gauche de la zone = par-dessus l'épaule gauche) ; lever le doigt ramène le regard devant.
+
 Dans les **Réglages**, **Vue : 1re personne / 3e personne**. En 3e personne, la caméra est derrière et au-dessus du joueur (repéré par un anneau jaune), qui est visible avec sa crosse et le palet ; la zone de vision fait tourner la caméra autour de lui. Les contrôles sont les mêmes. Les exercices courts du programme restent en 1re personne.
 
 ### Tutoriel
@@ -106,6 +108,13 @@ Chaque situation donne une **mission** :
 Règles qui portent la leçon :
 - **Pas de palet par derrière** : impossible de le piquer dans le dos, il faut d'abord se replacer devant l'attaquant.
 - **Foncer sur le porteur se paie** : l'attaquant passe à son coéquipier laissé seul, qui marque.
+
+Gestes du défenseur :
+- **🏒 Lever la crosse** : un bouton apparaît en défense (en bas à droite en paysage, à droite au-dessus du milieu en portrait). Il s'allume en vert quand le porteur est assez près (moins de 1,8 m). Le porteur perd le palet : à toi de le prendre. Ça marche aussi de côté ou en arrivant derrière lui, quand on le rattrape.
+- **🧱 Contact le long de la bande** : arriver de côté, épaule contre épaule, et le coincer contre la bande. Il s'arrête, le palet reste à ses pieds et tu le récupères : c'est le geste le plus valorisé. Le long de la bande, on ne peut pas lui piquer le palet à la crosse (il le protège avec son corps) : il faut le coincer ou lever sa crosse.
+- **💪 Contact d'épaule en glace ouverte**, à vitesse raisonnable : il perd le contrôle du palet.
+- **🚨 Pénalités**, comme dans les règles jeunesse (pas de mise en échec avant U15, mais le contact est permis) : contact **par derrière** (le plus grave contre la bande), ou **charge à pleine vitesse**. L'action est arrêtée et l'explication dit comment faire proprement.
+- On ne traverse pas les autres joueurs.
 
 Les 3 étoiles en défense :
 - **👀 Radar** : tous les attaquants repérés avant leur première passe ou leur premier tir.

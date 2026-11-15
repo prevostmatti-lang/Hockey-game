@@ -1496,3 +1496,52 @@ p {
     padding-top: 6px;
   }
 }
+
+/* Défense : bouton « Lever la crosse » (dans la zone de vision) */
+.lift-btn {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.85);
+  background: rgba(11, 37, 69, 0.55);
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  opacity: 0.6;
+  touch-action: none;
+  pointer-events: auto;
+  z-index: 5;
+}
+.lift-btn.ready {
+  opacity: 1;
+  background: rgba(31, 163, 92, 0.95);
+  box-shadow: 0 0 0 6px rgba(31, 163, 92, 0.35);
+  animation: puckpulse 0.6s ease-in-out infinite;
+}
+.lift-btn:active {
+  transform: scale(0.94);
+}
+.lift-ico {
+  font-size: 26px;
+}
+.lift-txt {
+  font-size: 13px;
+  line-height: 1.05;
+  text-align: center;
+}
+/* Portrait : la zone de vision est en haut → bouton juste au-dessus du milieu, à droite */
+@media (orientation: portrait) {
+  .lift-btn {
+    bottom: calc(50% + 14px);
+    width: 96px;
+    height: 96px;
+  }
+}

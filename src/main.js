@@ -5,7 +5,7 @@
 //   - lâcher l'écran : glisser ; double tap : freiner
 import { LEVELS, SCENARIOS, DEFENSE_SCENARIOS } from './scenarios.js';
 import { explain, describeOption } from './evaluate.js';
-import { createSim, angleTo, wrap, goalieShape } from './sim.js';
+import { createSim, angleTo, wrap, goalieShape, boardDist } from './sim.js';
 import { createWorld } from './world.js';
 import { drawReplay } from './diagram.js';
 import { sfx, speak, unlockAudio, toggleMute, isMuted, setAmbience } from './audio.js';
@@ -385,6 +385,7 @@ function loadScenario(scn) {
   stopAiming();
   $('#puck-ind').hidden = true;
   G.sim = createSim(scn, G.level, G.hand);
+  G.boardTip = false;
   G.evIdx = 0;
   G.seen = new Set();
   G.radar = null;
@@ -555,6 +556,18 @@ function updateInput() {
   // Vitesse : selon la distance du pouce au point de départ (au clavier : vitesse maximale).
   input.throttle = sp ? clamp((Math.hypot(st.dx, st.dy) - DEAD) / (FULL_SPEED_PX - DEAD), 0.3, 1) : 1;
   // Vision : tant que le 2e doigt est posé, la tête suit son glissement ; sinon elle revient devant.
+  // Doigt posé SANS bouger (0,3 s) : on regarde derrière soi, par-dessus l'épaule du côté du doigt
+  // (gauche de la zone de vision = épaule gauche). Dès qu'on glisse, on reprend la main.
+  const lp = lookId != null ? pointers.get(lookId) : null;
+  const now = performance.now();
+  if (lp && lp.maxR < 14 && now - lp.t0 > 300) {
+    const W = canvas.clientWidth;
+    const mid = canvas.clientHeight > W ? W / 2 : W * 0.75;
+    const target = (lp.x0 < mid ? 1 : -1) * Math.PI;
+    const dt = Math.min(0.1, (now - (lp.holdT || now)) / 1000);
+    lp.holdT = now;
+    headLook += clamp(target - headLook, -9 * dt, 9 * dt); // ≈ 180° en un tiers de seconde
+  }
   input.headAngle = lookId != null ? headLook : null;
   input.turnBoost = 1;
   input.head = 0;
@@ -897,7 +910,16 @@ function handleEvents() {
       sfx.puck();
       setBanner('🔁 Une-deux !', 'decide');
     } else if (ev.type === 'mateReceive' || ev.type === 'mateShot') sfx.puck();
-    else if (ev.type === 'over') onOver(ev.over);
+    else if (ev.type === 'lift') {
+      if (ev.ok) {
+        setBanner('🏒 Crosse levée ! Prends le palet !', 'decide');
+        sfx.puck();
+      } else if (ev.why === 'far') setBanner('Trop loin : colle-toi à lui pour lever sa crosse', 'info');
+      else setBanner('Lève la crosse du joueur qui a le palet', 'info');
+    } else if (ev.type === 'contact') {
+      setBanner(ev.kind === 'pin' ? '🧱 Coincé à la bande ! Prends le palet !' : '💪 Contact ! Prends le palet !', 'decide');
+      sfx.cheer();
+    } else if (ev.type === 'over') onOver(ev.over);
   }
 }
 
@@ -912,6 +934,7 @@ const OUTCOMES = {
   lost: '😬 Palet perdu !',
   time: '⏱️ Temps écoulé !',
   offside: '🚩 Hors-jeu !',
+  penalty: '🚨 Pénalité !',
   recovered: '💪 Palet récupéré !',
   goalAgainst: '😬 But encaissé !',
   saveUs: '🧤 Arrêt de ton gardien !',
@@ -929,6 +952,7 @@ function onOver(over) {
   } else {
     setBanner(OUTCOMES[over.type] || 'Fin', 'info');
     if (over.type === 'save') sfx.ooh();
+    if (over.type === 'penalty') sfx.whistle();
     sfx.bad();
   }
 }
@@ -977,6 +1001,9 @@ function defenseOutcome(o) {
   switch (o.type) {
     case 'recovered':
       if (o.how === 'poke') return ['💪 Tu as piqué le palet avec ta crosse !', ''];
+      if (o.how === 'lift') return ['🏒 Crosse levée ! Tu lui as soulevé la crosse et récupéré le palet.', ''];
+      if (o.how === 'pin') return ['🧱 Coincé contre la bande ! Contact propre, palet récupéré : c’est LE geste du défenseur.', ''];
+      if (o.how === 'contact') return ['💪 Contact d’épaule propre : il a perdu le palet, tu l’as pris.', ''];
       if (o.how === 'intercept') return ['✋ Interception ! Tu as coupé la passe.', ''];
       if (o.how === 'block') return ['🛡️ Tir bloqué ! Bravo pour le courage.', ''];
       if (o.how === 'mate') return [`🤝 Ton coéquipier n°${o.num} a récupéré le palet.`, ''];
@@ -991,6 +1018,10 @@ function defenseOutcome(o) {
       return ['⏱️ Tu as tenu jusqu’au bout !', ''];
     case 'offside':
       return ['🚩 Hors-jeu de l’adversaire : l’action est arrêtée.', ''];
+    case 'penalty':
+      if (o.kind === 'boardsBehind') return ['🚨 Pénalité : poussé dans le dos contre la bande !', 'C’est le geste le plus dangereux au hockey. Arrive à CÔTÉ de lui, épaule contre épaule, pour le coincer à la bande.'];
+      if (o.kind === 'behind') return ['🚨 Pénalité : contact par derrière !', 'Ne le touche jamais dans le dos. Rattrape-le, mets-toi à côté de lui, et lève sa crosse.'];
+      return ['🚨 Pénalité : charge !', 'Tu lui as foncé dessus à pleine vitesse. Ralentis avant le contact : épaule contre épaule, le long de la bande.'];
     default:
       return ['Fin de l’action.', ''];
   }
@@ -1001,7 +1032,7 @@ function showDefenseResult() {
   const o = st.over;
   const radar = !!G.radar;
   const ratio = st.dutyT > 0 ? st.dutyOkT / st.dutyT : 0;
-  const ownAction = o.type === 'recovered' && ['poke', 'intercept', 'block'].includes(o.how);
+  const ownAction = o.type === 'recovered' && ['poke', 'intercept', 'block', 'lift', 'pin', 'contact'].includes(o.how);
   const placement = ratio >= 0.55 || ownAction;
   // Le gardien qui arrête le tir ne compte pas : c'est au joueur de récupérer le palet.
   const zero = o.type === 'recovered' || o.type === 'time' || o.type === 'offside';
@@ -1241,6 +1272,30 @@ function updatePuckIndicator() {
   el.style.setProperty('--k', k.toFixed(2));
 }
 
+// ---------- défense : bouton « Lever la crosse » ----------
+// Visible en défense ; il s'allume quand le porteur est assez près pour lui lever la crosse.
+function updateLiftButton() {
+  const b = $('#btn-lift');
+  const st = G.sim && G.sim.state;
+  const show = !!st && st.defense && !st.over && !G.tuto;
+  b.hidden = !show;
+  if (!show) return;
+  const c = st.puck.owner;
+  const d = c && !c.team && !c.goalie ? Math.hypot(c.x - st.me.x, c.z - st.me.z) : 99;
+  b.classList.toggle('ready', d < 1.8);
+  // Une fois par action : le conseil du défenseur quand le porteur longe la bande.
+  if (d < 4 && boardDist(c) < 1.7 && !G.boardTip) {
+    G.boardTip = true;
+    setBanner('🧱 Il longe la bande : coince-le, épaule contre épaule !', 'decide');
+  }
+}
+$('#btn-lift').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (G.phase !== 'play' || !G.sim) return;
+  G.sim.stickLift();
+});
+
 // ---------- boucle ----------
 function update(dt) {
   if (G.phase === 'drill' && G.drill) {
@@ -1272,6 +1327,7 @@ function update(dt) {
     $('#timer-fill').style.transform = `scaleX(${clamp(1 - st.t / G.level.time, 0, 1)})`;
     drawShotPanel();
     updatePuckIndicator();
+    updateLiftButton();
     if (G.tuto) updateTuto(dt);
     else if (st.over && st.overT >= END_DELAY && !G.shown) {
       if (G.game && G.game.id === 'tirs') endShot();

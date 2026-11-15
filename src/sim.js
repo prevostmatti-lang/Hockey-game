@@ -17,6 +17,17 @@ const NET_H = 1.22; // hauteur de la cage (m)
 const CORNER_R = 8.5; // rayon des coins arrondis de la patinoire (m)
 
 /** Ramène un point à l'intérieur de la patinoire aux coins arrondis (marge en m). Renvoie la normale si on a touché. */
+/** Distance d'un point à la bande (m), coins arrondis compris. */
+export function boardDist(o) {
+  const hx = 13;
+  const hz = 30;
+  const r = CORNER_R;
+  const cx = hx - r;
+  const cz = hz - r;
+  if (Math.abs(o.x) > cx && Math.abs(o.z) > cz) return r - Math.hypot(Math.abs(o.x) - cx, Math.abs(o.z) - cz);
+  return Math.min(hx - Math.abs(o.x), hz - Math.abs(o.z));
+}
+
 function inRink(o, margin) {
   const hx = 13 - margin;
   const hz = 30 - margin;
@@ -483,7 +494,7 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     // On peut tourner même à l'arrêt (pivot sur les patins), pour faire demi-tour facilement.
     me.yaw = wrap(me.yaw - turnRate(clamp(input.turn || 0, -1, 1)) * (input.turnBoost || 1) * dt);
     // La tête suit le corps (plus de regard séparé) ; on garde la possibilité pour plus tard.
-    const headTarget = input.headAngle != null ? clamp(input.headAngle, -2.9, 2.9) : clamp(input.head || 0, -1, 1) * 2.3;
+    const headTarget = input.headAngle != null ? clamp(input.headAngle, -Math.PI, Math.PI) : clamp(input.head || 0, -1, 1) * 2.3;
     me.head += (headTarget - me.head) * Math.min(1, dt * 6);
     const f = fwd(me.yaw);
     me.vx = f.x * me.speed;
@@ -684,6 +695,13 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
 
   function attackerAI(a, dt) {
     const p = s.puck;
+    // Sonné par un contact ou coincé à la bande : il ne bouge plus un instant.
+    if (a.stunT > 0) {
+      a.stunT -= dt;
+      a.vx = 0;
+      a.vz = 0;
+      return;
+    }
     if (p.owner === a) {
       a.hasT += dt;
       const toNet = dist(a, OWN_NET);
@@ -866,13 +884,14 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     const lifted = p.y > 0.3; // palet levé : il passe au-dessus des crosses
     const meReach = lifted ? 0 : defense && !p.team ? (since < 0.15 ? 0 : sp2 > 12 ? 0.75 : 1.1) : 1.1;
     if (!(p.releasedBy === me && since < 0.35) && dist(blade(me), p) < meReach && sp2 < 27) {
-      const how = !p.team && p.shot ? 'block' : !p.team && sp2 > 0.5 ? 'intercept' : 'loose';
+      let how = !p.team && p.shot ? 'block' : !p.team && sp2 > 0.5 ? 'intercept' : 'loose';
+      if (s.freed && s.t - s.freed.t < 2.5) how = s.freed.how; // palet libéré par toi (crosse levée, contact)
       gain(me);
       if (defense) end('recovered', { how });
       return;
     }
     for (const a of actors) {
-      if (a.goalie || (a === p.releasedBy && since < 0.35)) continue;
+      if (a.goalie || (a === p.releasedBy && since < 0.35) || a.stunT > 0) continue;
       // La première passe (du passeur vers le joueur) est pour lui seul.
       if (p.releasedBy && p.releasedBy.role === 'passer' && !s.received) continue;
       const b = blade(a);
@@ -917,12 +936,100 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     }
   }
 
+  // ---------- défense : crosse levée et contact physique ----------
+  // Règles des jeunes (jusqu'en U13 : pas de mise en échec, mais le contact est permis) :
+  //   - coincer le porteur contre la bande en arrivant de côté ou de face : PERMIS et valorisé ;
+  //   - contact d'épaule en glace ouverte, à vitesse raisonnable : permis, il perd le palet ;
+  //   - par derrière, ou en chargeant à pleine vitesse : PÉNALITÉ (action arrêtée).
+  function freePuck(from, vx, vz, how) {
+    const p = s.puck;
+    const b = blade(from);
+    p.owner = null;
+    p.x = b.x;
+    p.z = b.z;
+    p.y = 0.02;
+    p.vy = 0;
+    p.vx = vx;
+    p.vz = vz;
+    p.releasedBy = from;
+    p.releaseT = s.t;
+    p.shot = false;
+    p.team = false;
+    s.freed = { t: s.t, how };
+  }
+
+  /** Lever la crosse du porteur : il faut être tout près (à côté ou derrière lui). */
+  function stickLift() {
+    if (!defense || s.over) return null;
+    if (s.t < (s.liftCD || 0)) return { ok: false, why: 'wait' };
+    s.liftCD = s.t + 0.8;
+    const c = s.puck.owner;
+    if (!c || c.team || c.goalie) {
+      emit('lift', { ok: false, why: 'noCarrier' });
+      return { ok: false, why: 'noCarrier' };
+    }
+    const d = dist(me, c);
+    if (d > 1.8) {
+      emit('lift', { ok: false, why: 'far', d });
+      return { ok: false, why: 'far', d };
+    }
+    // Le palet reste là où il était, il glisse à peine : à toi de le prendre.
+    const h = Math.hypot(c.vx, c.vz) > 0.3 ? { x: c.vx, z: c.vz } : fwd(c.face);
+    const hn = Math.hypot(h.x, h.z) || 1;
+    c.stunT = 0.6;
+    freePuck(c, (h.x / hn) * 0.8, (h.z / hn) * 0.8, 'lift');
+    s.lifts = (s.lifts || 0) + 1;
+    emit('lift', { ok: true });
+    return { ok: true };
+  }
+
+  function stepContact() {
+    // Les corps ne se traversent pas (butée à 0,8 m dans stepMe) : contact dès qu'on touche.
+    const TOUCH = 0.86;
+    for (const a of actors) {
+      if (a.goalie || a.team) continue;
+      const d = dist(me, a);
+      if (d >= TOUCH || d < 1e-4) continue;
+      const nx = (me.x - a.x) / d;
+      const nz = (me.z - a.z) / d;
+      if (!defense || s.puck.owner !== a || a.stunT > 0 || s.t - (s.contactT ?? -9) < 0.6) continue;
+      s.contactT = s.t;
+      const sp = Math.abs(me.speed);
+      const hv = Math.hypot(a.vx, a.vz) > 0.3 ? { x: a.vx, z: a.vz } : fwd(a.face);
+      const hn = Math.hypot(hv.x, hv.z) || 1;
+      // Vient-on de derrière lui ? (on arrive dans son dos, du côté opposé à sa course)
+      const fromBehind = ((hv.x / hn) * nx + (hv.z / hn) * nz) < -0.55;
+      const boards = boardDist(a) < 1.7;
+      if (fromBehind && sp > 1.2) {
+        end('penalty', { kind: boards ? 'boardsBehind' : 'behind' });
+        return;
+      }
+      if (!boards && sp > 4.3) {
+        end('penalty', { kind: 'charge' });
+        return;
+      }
+      if (boards) {
+        // Coincé contre la bande : il s'arrête, le palet reste à ses pieds, tu le récupères.
+        a.stunT = 1.2;
+        freePuck(a, -nx * 0.4, -nz * 0.4, 'pin');
+        emit('contact', { kind: 'pin' });
+      } else if (sp > 0.8) {
+        // Contact d'épaule en glace ouverte : il perd l'équilibre et le contrôle du palet.
+        a.stunT = 0.5;
+        freePuck(a, (hv.x / hn) * 1.2, (hv.z / hn) * 1.2, 'contact');
+        emit('contact', { kind: 'contact' });
+      }
+    }
+  }
+
   function stepSteal(dt) {
     const p = s.puck;
     if (defense) {
       // Mise en échec avec la crosse : palette sur le palet (ou contact) pendant un court instant.
       const c = p.owner;
-      if (c && !c.team && !c.goalie && (dist(blade(me), p) < 0.85 || dist(me, c) < 0.9)) {
+      // (À pleine vitesse, on ne contrôle pas sa crosse : il faut ralentir pour piquer le palet.)
+      // (Le long de la bande, il protège le palet avec son corps : il faut le coincer ou lever sa crosse.)
+      if (c && !c.team && !c.goalie && dist(blade(me), p) < 0.85 && Math.abs(me.speed) < 4.2 && boardDist(c) >= 1.7) {
         s.pokeT += dt;
         // Par derrière, impossible : il faut d'abord se replacer entre l'attaquant et le but.
         const behind = dist(me, OWN_NET) > dist(c, OWN_NET) + 0.5;
@@ -958,6 +1065,8 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     s.t += dt;
     stepMe(dt, input);
     for (const a of actors) (a.team ? mateAI : oppAI)(a, dt);
+    stepContact();
+    if (s.over) return;
     // Les joueurs patinent dans le sens de leur déplacement (et non de côté en regardant le palet) :
     // en avant, ou à reculons si leur cible est derrière eux (défenseur qui recule face au jeu).
     for (const a of actors) {
@@ -1149,5 +1258,5 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     gain(me);
   }
 
-  return { state: s, step, release, blade, wouldShoot, stickOffset, resetMe, zones: () => (goalie ? zoneStatus(goalie, blade(me), 0, actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
+  return { state: s, step, release, stickLift, blade, wouldShoot, stickOffset, resetMe, zones: () => (goalie ? zoneStatus(goalie, blade(me), 0, actors.filter((a) => !a.team && !a.goalie), level.goalieSize ?? 1) : []) };
 }
