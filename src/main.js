@@ -1220,8 +1220,8 @@ function syncRender() {
   st.actors.forEach((a, i) => {
     G.meshes[i].setPos(a.x, a.z);
     G.meshes[i].mesh.rotation.y = a.face;
-    // Gardien en papillon : plus bas et plus large.
-    if (a.goalie) G.meshes[i].mesh.scale.set(a.butterfly ? 1.6 : 1.25, a.butterfly ? 0.62 : 1.05, 1.25);
+    // Gardien en papillon : à genoux, jambières écartées sur la glace (vraie posture, pas un écrasement).
+    if (a.goalie) G.meshes[i].setButterfly(a.butterfly);
   });
   const p = st.puck;
   const mine = p.owner === st.me;

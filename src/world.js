@@ -17,8 +17,18 @@ function std(color, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, ...extra });
 }
 
+/**
+ * Couches peintes sur la glace (logo, lignes, cercles, points, ombres) : elles sont à quelques mm
+ * les unes des autres. De loin, la carte graphique ne sait plus les départager et elles scintillent
+ * (et le logo passait par-dessus la ligne rouge). On fixe donc l'ordre avec un décalage de profondeur
+ * (« polygon offset ») : plus la couche est haute, plus elle gagne.
+ */
+function decal(layer) {
+  return { polygonOffset: true, polygonOffsetFactor: -layer, polygonOffsetUnits: -2 * layer };
+}
+
 function flat(geom, color, x, z, y = 0.004, opts = {}) {
-  const m = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, ...opts }));
+  const m = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, ...decal(Math.round(y * 1000)), ...opts }));
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, y, z);
   return m;
@@ -167,11 +177,14 @@ function buildArena(scene) {
   const ROWS = 7;
   const crowdPos = [];
   // Quatre côtés : chaque gradin est un « escalier » de boîtes qui s'éloigne de la bande.
+  // Les gradins des côtés vont jusqu'au fond (ils couvrent les coins) ; ceux des bouts s'arrêtent
+  // entre eux : aucune marche ne se superpose à une autre (sinon les surfaces scintillent).
+  const depth = ROWS * 0.9;
   const sides = [
-    { axis: 'z', at: -L / 2 - 1.2, dir: -1, len: W + 22 },
-    { axis: 'z', at: L / 2 + 1.2, dir: 1, len: W + 22 },
-    { axis: 'x', at: -W / 2 - 1.2, dir: -1, len: L - 4 },
-    { axis: 'x', at: W / 2 + 1.2, dir: 1, len: L - 4 },
+    { axis: 'z', at: -L / 2 - 1.2, dir: -1, len: W + 2.4 },
+    { axis: 'z', at: L / 2 + 1.2, dir: 1, len: W + 2.4 },
+    { axis: 'x', at: -W / 2 - 1.2, dir: -1, len: L + 2.4 + 2 * depth },
+    { axis: 'x', at: W / 2 + 1.2, dir: 1, len: L + 2.4 + 2 * depth },
   ];
   for (const sd of sides) {
     for (let r = 0; r < ROWS; r++) {
@@ -187,27 +200,29 @@ function buildArena(scene) {
       for (let i = 0; i < n; i++) {
         if (Math.random() < 0.4) continue;
         const t = -sd.len / 2 + (i + 0.5) * (sd.len / n) + (Math.random() - 0.5) * 0.2;
-        const pos = sd.axis === 'z' ? [t, h, off] : [off, h, t];
+        const seat = off - sd.dir * 0.12; // assis vers l'avant de la marche
+        const pos = sd.axis === 'z' ? [t, h, seat] : [seat, h, t];
         crowdPos.push({ pos, face: sd.axis === 'z' ? (sd.dir > 0 ? Math.PI : 0) : sd.dir > 0 ? -Math.PI / 2 : Math.PI / 2 });
       }
     }
   }
-  // Public : un corps (capsule) et une tête par spectateur, couleurs variées (beaucoup de bleu club).
-  const bodyGeo = new THREE.BoxGeometry(0.38, 0.62, 0.28);
-  const headGeo = new THREE.IcosahedronGeometry(0.14, 0);
+  // Public : spectateurs assis (buste arrondi posé sur la marche, tête au-dessus), couleurs variées
+  // (beaucoup de bleu club). Une seule « instanced mesh » par forme : léger pour le téléphone.
+  const bodyGeo = new THREE.CapsuleGeometry(0.17, 0.3, 2, 6);
+  const headGeo = new THREE.SphereGeometry(0.12, 8, 6);
   const bodies = new THREE.InstancedMesh(bodyGeo, new THREE.MeshLambertMaterial(), crowdPos.length);
   const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshLambertMaterial(), crowdPos.length);
   const palette = [0x1e66f5, 0x2456b8, 0x0b2545, 0x0b2545, 0x3a3f4a, 0x2b2f38, 0x6b7a90, 0xd9dde3, 0xf5c518, 0xb33a3f];
-  const skins = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
+  const skins = [0xf6d2b0, 0xeec39a, 0xe0ac69, 0xc68642, 0x9b6a43];
   const m4 = new THREE.Matrix4();
   const col = new THREE.Color();
   crowdPos.forEach((c, i) => {
     const [x, y, z] = c.pos;
     m4.makeRotationY(c.face);
-    m4.setPosition(x, y + 0.42, z);
+    m4.setPosition(x, y + 0.32, z); // buste (0,64 m de haut) posé sur la marche
     bodies.setMatrixAt(i, m4);
     bodies.setColorAt(i, col.setHex(palette[(Math.random() * palette.length) | 0]));
-    m4.setPosition(x, y + 0.95, z);
+    m4.setPosition(x, y + 0.75, z); // tête juste au-dessus des épaules
     heads.setMatrixAt(i, m4);
     heads.setColorAt(i, col.setHex(skins[(Math.random() * skins.length) | 0]));
   });
@@ -217,19 +232,23 @@ function buildArena(scene) {
   const rigMat = std(0x3a4454);
   for (const x of [-8, 0, 8]) {
     const rig = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, L - 8), rigMat);
-    rig.position.set(x, 16, 0);
+    rig.position.set(x, 16.2, 0); // accrochée au plafond
     scene.add(rig);
     for (let z = -24; z <= 24; z += 6) {
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.8), lampMat);
-      lamp.position.set(x, 15.8, z);
+      lamp.position.set(x, 15.99, z);
       scene.add(lamp);
     }
   }
+  // Plafond (les projecteurs et les bannières y sont accrochés, ils ne flottent plus dans le vide).
+  const ceil = new THREE.Mesh(new THREE.BoxGeometry(W + 2 * depth + 6, 0.3, L + 2 * depth + 6), std(0x152238));
+  ceil.position.set(0, 16.5, 0);
+  scene.add(ceil);
   // Bannières du club suspendues aux bouts de la patinoire.
   for (const z of [-L / 2 - 4, L / 2 + 4]) {
     for (const x of [-9, -3, 3, 9]) {
       const ban = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.4), std(x % 2 ? 0x1e66f5 : 0xf5c518, { side: THREE.DoubleSide }));
-      ban.position.set(x, 11.5, z);
+      ban.position.set(x, 16.35 - 1.7, z); // suspendues au plafond
       scene.add(ban);
     }
   }
@@ -249,7 +268,7 @@ function addLogos(scene) {
   iceTex.colorSpace = THREE.SRGBColorSpace;
   const iceLogo = new THREE.Mesh(
     new THREE.PlaneGeometry(4.6, 4.6),
-    new THREE.MeshBasicMaterial({ map: iceTex, transparent: true, opacity: 0.55, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ map: iceTex, transparent: true, opacity: 0.55, depthWrite: false, ...decal(2) }),
   );
   iceLogo.rotation.x = -Math.PI / 2;
   iceLogo.position.y = 0.002; // sous les lignes (0,004)
@@ -492,6 +511,11 @@ function mat(key, color, extra) {
   if (!MAT[key]) MAT[key] = std(color, extra);
   return MAT[key];
 }
+/** Ombre douce sous les joueurs (partagée), au-dessus des lignes de la glace. */
+function shadowMat() {
+  if (!MAT.shadow) MAT.shadow = new THREE.MeshBasicMaterial({ color: 0x0b2545, transparent: true, opacity: 0.18, depthWrite: false, ...decal(7) });
+  return MAT.shadow;
+}
 const BACK_TEX = new Map();
 /** Numéro imprimé dans le dos du maillot. */
 function backNumber(num) {
@@ -528,7 +552,23 @@ function mergeByMaterial(group) {
   for (const ch of [...group.children]) {
     if (!ch.isMesh || ch.material.map) continue;
     const geo = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
-    geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, ch.matrixWorld));
+    const mtx = new THREE.Matrix4().multiplyMatrices(inv, ch.matrixWorld);
+    geo.applyMatrix4(mtx);
+    // Pièce en miroir (bras d'un gaucher) : on remet les triangles dans le bon sens, sinon leurs
+    // faces seraient tournées vers l'intérieur et invisibles une fois fusionnées.
+    if (mtx.determinant() < 0) {
+      for (const name of ['position', 'normal']) {
+        const a = geo.attributes[name];
+        if (!a) continue;
+        for (let t = 0; t < a.count; t += 3) {
+          for (let c = 0; c < 3; c++) {
+            const v = a.array[(t + 1) * 3 + c];
+            a.array[(t + 1) * 3 + c] = a.array[(t + 2) * 3 + c];
+            a.array[(t + 2) * 3 + c] = v;
+          }
+        }
+      }
+    }
     if (!buckets.has(ch.material)) buckets.set(ch.material, []);
     buckets.get(ch.material).push(geo);
     group.remove(ch);
@@ -685,7 +725,7 @@ function makePlayer({ team, num, goalie, hand = 'R', me = false }) {
     mask.scale.set(0.95, 1.12, 1.05);
     mask.position.y = 1.65;
     g.add(mask);
-    const grid = new THREE.Mesh(new THREE.SphereGeometry(0.152, 10, 8, -0.9, 1.8, 0.9, 1.1), new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true }));
+    const grid = new THREE.Mesh(new THREE.SphereGeometry(0.152, 10, 8, Math.PI / 2 - 0.9, 1.8, 0.9, 1.1), new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true }));
     grid.position.y = 1.65;
     grid.scale.set(0.95, 1.12, 1.05);
     g.add(grid);
@@ -695,7 +735,7 @@ function makePlayer({ team, num, goalie, hand = 'R', me = false }) {
     helmet.position.y = 1.66;
     g.add(helmet);
     // grille du casque (devant le visage)
-    const grid = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 6, -0.75, 1.5, 1.2, 0.9), new THREE.MeshBasicMaterial({ color: 0xbfc7cf, wireframe: true }));
+    const grid = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 6, Math.PI / 2 - 0.75, 1.5, 1.2, 0.9), new THREE.MeshBasicMaterial({ color: 0xbfc7cf, wireframe: true }));
     grid.position.y = 1.66;
     g.add(grid);
     const chin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.04), dark);
@@ -736,7 +776,7 @@ function makePlayer({ team, num, goalie, hand = 'R', me = false }) {
   // Ombre douce sous le joueur
   const shadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.42, 20),
-    new THREE.MeshBasicMaterial({ color: 0x0b2545, transparent: true, opacity: 0.18, depthWrite: false }),
+    shadowMat(),
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.006;
@@ -766,6 +806,20 @@ function animateTo(mesh, x, z) {
     // l'extérieur pendant que l'autre glisse sous le corps ; le corps penché bascule sur la
     // jambe qui glisse. Cadence plus lente et poussée plus longue qu'un pas.
     an.phase += dt * (2.4 + an.v * 1.0);
+    if (an.butterfly) {
+      // Gardien en papillon : à genoux, jambières écartées à plat sur la glace, buste droit.
+      for (let i = 0; i < 2; i++) {
+        an.legs[i].rotation.z = (i === 0 ? -1 : 1) * 1.25;
+        an.legs[i].rotation.x = 0;
+      }
+      an.body.rotation.x = 0.08;
+      an.body.rotation.z = 0;
+      an.body.position.x = 0;
+      an.body.position.y = -0.42;
+      an.last = { x, z, t: now };
+      mesh.position.set(x, 0, z);
+      return;
+    }
     for (let i = 0; i < 2; i++) {
       const push = Math.max(0, Math.sin(an.phase + i * Math.PI)); // 0 = glisse, 1 = poussée max
       const out = i === 0 ? -1 : 1; // legs[0] est à droite du joueur (côté -x)
@@ -810,7 +864,7 @@ export function createWorld(canvas) {
   const netHit = buildNet(scene, 26, 1);
   buildNet(scene, -26, -1);
 
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 250);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.12, 250); // plan proche à 12 cm : meilleure précision de profondeur
   scene.add(camera);
   let myStick = buildMyStick('R');
   scene.add(myStick);
@@ -821,7 +875,7 @@ export function createWorld(canvas) {
   // Ombre du palet : on voit bien quand il vole (tir haut, passe levée).
   const puckShadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.08, 16),
-    new THREE.MeshBasicMaterial({ color: 0x0b2545, transparent: true, opacity: 0.3, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x0b2545, transparent: true, opacity: 0.3, depthWrite: false, ...decal(8) }),
   );
   puckShadow.rotation.x = -Math.PI / 2;
   scene.add(puckShadow);
@@ -1112,6 +1166,11 @@ export function createWorld(canvas) {
         },
         face(x, z) {
           mesh.rotation.y = Math.atan2(x - mesh.position.x, z - mesh.position.z);
+        },
+        /** Gardien : posture papillon (à genoux, jambières au sol) ou debout. */
+        setButterfly(on) {
+          const an = mesh.userData.anim;
+          if (an) an.butterfly = !!on;
         },
       };
     },
