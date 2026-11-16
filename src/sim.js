@@ -420,7 +420,9 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
       a.vz = 0;
       return;
     }
-    const step = Math.min(d, speed * dt);
+    // Arrivée en douceur : on ralentit à l'approche du point visé (au lieu de s'arrêter net puis de
+    // repartir à chaque image quand la cible bouge, ce qui faisait trembler les joueurs).
+    const step = Math.min(d, Math.min(speed, d * 7) * dt);
     a.vx = (dx / d) * (step / dt);
     a.vz = (dz / d) * (step / dt);
     a.x += (dx / d) * step;
@@ -1072,7 +1074,10 @@ export function createSim(scn, level, hand = 'R', rand = Math.random) {
     for (const a of actors) {
       if (a.goalie || s.puck.owner === a) continue;
       const sp = Math.hypot(a.vx, a.vz);
-      if (sp < 0.8) continue;
+      // Hystérésis : on bascule « regarde sa course » / « regarde le palet » avec une marge,
+      // sinon un joueur dont la vitesse hésite autour du seuil se retourne sans arrêt.
+      a.skating = a.skating ? sp > 0.5 : sp > 1.0;
+      if (!a.skating) continue;
       const va = Math.atan2(a.vx, a.vz);
       const want = Math.abs(wrap(va - a.face)) < 2.1 ? va : wrap(va + Math.PI);
       a.face = want;

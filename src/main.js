@@ -393,6 +393,8 @@ function loadScenario(scn) {
   world.clearActors();
   world.setStickVisible(true);
   G.meshes = G.sim.state.actors.map((a) => world.addActor({ team: a.team, num: a.num, goalie: a.goalie, hand: a.hand }));
+  // Orientation de départ exacte (ensuite, les joueurs tournent en douceur).
+  G.sim.state.actors.forEach((a, i) => (G.meshes[i].mesh.rotation.y = a.face));
   syncRender();
 }
 
@@ -1217,9 +1219,15 @@ function flash(text) {
 
 function syncRender() {
   const st = G.sim.state;
+  const now = performance.now();
+  const rdt = Math.min(0.1, (now - (syncRender.t || now)) / 1000);
+  syncRender.t = now;
   st.actors.forEach((a, i) => {
     G.meshes[i].setPos(a.x, a.z);
-    G.meshes[i].mesh.rotation.y = a.face;
+    // Le modèle tourne vers sa direction en douceur (≈ un demi-tour en 0,3 s), sans à-coups.
+    const m = G.meshes[i].mesh;
+    const diff = wrap(a.face - m.rotation.y);
+    m.rotation.y = rdt > 0 ? m.rotation.y + clamp(diff, -11 * rdt, 11 * rdt) : a.face;
     // Gardien en papillon : à genoux, jambières écartées sur la glace (vraie posture, pas un écrasement).
     if (a.goalie) G.meshes[i].setButterfly(a.butterfly);
   });
